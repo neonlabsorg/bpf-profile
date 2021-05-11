@@ -1,0 +1,11 @@
+[package]
+name = "bpf_profile"
+version = "0.0.1"
+authors = ["NeonLabs Maintainers <maintainers@cyber-core.dev>"]
+edition = "2018"
+
+[dependencies]
+structopt = { version = "0.3.21", features = ["color"] }
+thiserror = "1.0.24"
+tracing = "0.1.26"
+tracing-subscriber = "0.2.18"
