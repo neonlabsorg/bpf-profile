@@ -6,7 +6,7 @@ mod profile;
 mod trace;
 
 use profile::Profile;
-use std::io::{BufReader, BufWriter};
+use std::io::BufWriter;
 use std::path::PathBuf;
 //use tracing::info;
 
@@ -17,9 +17,8 @@ pub fn run(
     output_file: Option<PathBuf>,
     _: String, // always 'callgrind' currently
 ) -> Result<()> {
-    let trace = BufReader::new(trace::open(trace_file)?);
     let dump = dump::read(dump_file)?;
-    let profile = Profile::create(trace, &dump)?;
+    let profile = Profile::create(trace_file, &dump)?;
 
     match output_file {
         None => profile.write_callgrind(std::io::stdout()),
@@ -33,8 +32,22 @@ pub fn run(
 /// Represents errors of the converter.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("Unsupported file name '{0}'")]
+    Filename(PathBuf),
+
     #[error("Cannot open file '{1}': {0}")]
     OpenFile(#[source] std::io::Error, PathBuf),
+    #[error("Cannot read line '{1}': {0}")]
+    ReadLine(#[source] std::io::Error, String),
+
+    #[error("Cannot parse instruction: '{0}'")]
+    Parsing(String),
+    #[error("Instruction is not a call: '{0}'")]
+    NotCall(String),
+    #[error("Stack is empty")]
+    EmptyStack,
+    #[error("Frame of instruction differs from expected stack depth")]
+    FrameMismatch,
 
     #[error("Input/output error")]
     Io(#[from] std::io::Error),

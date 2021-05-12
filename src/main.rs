@@ -1,6 +1,7 @@
 //! bpf_profile main module.
 //!
 //! This program reads a trace file that contains the trace output of the BPF VM.
+//! and generates a profile for tools like `callgrind_annotate` or `qcachegrind`.
 //!
 //! To resolve names of functions this program may require a dump file containing
 //! the instruction dump of the ELF.

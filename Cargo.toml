@@ -1,10 +1,12 @@
 [package]
-name = "bpf_profile"
+name = "bpf-profile"
 version = "0.0.1"
 authors = ["NeonLabs Maintainers <maintainers@cyber-core.dev>"]
 edition = "2018"
 
 [dependencies]
+lazy_static = "1.4.0"
+regex = "1.5.4"
 structopt = { version = "0.3.21", features = ["color"] }
 thiserror = "1.0.24"
 tracing = "0.1.26"
