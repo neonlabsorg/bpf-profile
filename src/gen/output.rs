@@ -1,4 +1,4 @@
-//! bpf_profile output module.
+//! bpf-profile output module.
 
 use super::{Error, Result};
 use std::fs::OpenOptions;

@@ -1,4 +1,4 @@
-//! bpf_profile options parser.
+//! bpf-profile options parser.
 
 use crate::config;
 use std::path::PathBuf;

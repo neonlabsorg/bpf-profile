@@ -1,1 +1,1 @@
-//! bpf_profile tests module.
+//! bpf-profile tests module.

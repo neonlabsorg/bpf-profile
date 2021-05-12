@@ -1,4 +1,4 @@
-//! bpf_profile generate command implementation.
+//! bpf-profile generate command implementation.
 
 mod dump;
 mod output;
@@ -40,15 +40,14 @@ pub enum Error {
     #[error("Cannot read line '{1}': {0}")]
     ReadLine(#[source] std::io::Error, String),
 
-    #[error("Cannot parse instruction: '{0}'")]
-    Parsing(String),
+    #[error("Skipped input")]
+    Skipped,
+    #[error("Cannot parse trace '{0}' at line {1}")]
+    Parsing(String, usize),
     #[error("Instruction is not a call: '{0}'")]
     NotCall(String),
-    #[error("Stack is empty")]
-    EmptyStack,
-    #[error("Frame of instruction differs from expected stack depth")]
-    FrameMismatch,
-
+    //#[error("Stack is empty on exit")]
+    //EmptyStack,
     #[error("Input/output error")]
     Io(#[from] std::io::Error),
 }

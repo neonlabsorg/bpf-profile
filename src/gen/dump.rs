@@ -1,4 +1,4 @@
-//! bpf_profile dump module.
+//! bpf-profile dump module.
 
 use super::{Error, Result};
 use std::fs::File;
