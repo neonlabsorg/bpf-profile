@@ -3,10 +3,10 @@
 use super::dump::Object;
 use super::trace::{self, Instruction};
 use super::{Error, Result};
-use crate::config::GROUND_ZERO;
 use maplit::hashmap;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
+use std::mem;
 use std::path::PathBuf;
 
 type Functions = HashMap<String, Function>;
@@ -18,6 +18,8 @@ pub struct Profile {
     entrypoint: Call,
     functions: Functions,
 }
+
+const GROUND_ZERO: &str = "ground zero";
 
 impl Profile {
     /// Reads the trace and creates the profile data.
@@ -63,7 +65,7 @@ impl Profile {
         self.entrypoint.increment_cost(&mut self.functions);
     }
 
-    /// Adds next call to the stack.
+    /// Adds next call to the call stack.
     fn push_call(&mut self, call: Call) {
         tracing::debug!("Profile.push_call {}", &call.address);
         let address = call.address.clone();
@@ -75,7 +77,7 @@ impl Profile {
         }
     }
 
-    /// Removes finished call from the stack and adds it to the caller.
+    /// Removes finished call from the call stack and adds it to the caller.
     fn pop_call(&mut self) {
         let call = self.entrypoint.pop_call();
         tracing::debug!("Profile.pop_call {}", &call.address);
@@ -92,7 +94,7 @@ struct Call {
     address: String,
     caller: String,
     cost: usize,
-    calls: Vec<Call>,
+    callee: Box<Option<Call>>,
 }
 
 impl Call {
@@ -102,7 +104,7 @@ impl Call {
             address: address.into(),
             caller: String::default(),
             cost: 0,
-            calls: Vec::new(),
+            callee: Box::new(None),
         }
     }
 
@@ -121,39 +123,40 @@ impl Call {
     /// Increments the cost of this call.
     fn increment_cost(&mut self, functions: &mut Functions) {
         tracing::debug!("Call({}).increment_cost", self.address);
-        if self.calls.is_empty() {
-            self.cost += 1;
-            functions.get_mut(&self.address).unwrap().increment_cost();
-        } else {
-            let last_index = self.calls.len() - 1;
-            assert!(last_index == 0);
-            self.calls[last_index].increment_cost(functions);
+        match *self.callee {
+            Some(ref mut callee) => {
+                callee.increment_cost(functions);
+            }
+            None => {
+                self.cost += 1;
+                functions.get_mut(&self.address).unwrap().increment_cost();
+            }
         }
     }
 
-    /// Adds next call to the stack.
+    /// Adds next call to the call stack.
     fn push_call(&mut self, mut call: Call) {
         tracing::debug!("Call({}).push_call {}", self.address, call.address);
-        if self.calls.is_empty() {
-            call.caller = self.address.clone();
-            self.calls.push(call);
-        } else {
-            let last_index = self.calls.len() - 1;
-            assert!(last_index == 0);
-            self.calls[last_index].push_call(call);
+        match *self.callee {
+            Some(ref mut callee) => {
+                callee.push_call(call);
+            }
+            None => {
+                call.caller = self.address.clone();
+                let _ = mem::replace(&mut *self.callee, Some(call));
+            }
         }
     }
 
-    /// Removes current call from the stack.
+    /// Removes current call from the call stack.
     fn pop_call(&mut self) -> Call {
         tracing::debug!("Call({}).pop_call", self.address);
-        assert!(!self.calls.is_empty());
-        let last_index = self.calls.len() - 1;
-        assert!(last_index == 0);
-        if !self.calls[last_index].calls.is_empty() {
-            self.calls[last_index].pop_call()
+        assert!(self.callee.is_some());
+        let callee = self.callee.as_mut().as_mut().unwrap();
+        if callee.callee.is_some() {
+            callee.pop_call()
         } else {
-            let call = self.calls.pop().unwrap();
+            let call = mem::replace(&mut *self.callee, None).unwrap();
             self.cost += call.cost;
             call
         }
@@ -190,7 +193,7 @@ impl Function {
         self.calls.push(call);
     }
 
-    /// Returns cost of the function and of it's enclosed calls.
+    /// Returns inclusive cost of the function and of it's calls.
     fn total_cost(&self) -> usize {
         self.calls.iter().fold(self.cost, |sum, c| sum + c.cost)
     }

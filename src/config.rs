@@ -6,5 +6,3 @@ pub const DEFAULT_CONFIG: &str = "bpf-profile.conf";
 
 pub const FORMATS: &[&str] = &["callgrind"];
 pub const DEFAULT_FORMAT: &str = "callgrind";
-
-pub const GROUND_ZERO: &str = "ground zero";
