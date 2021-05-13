@@ -5,33 +5,12 @@ mod output;
 mod profile;
 mod trace;
 
+#[cfg(test)]
+mod tests;
+
 use profile::Profile;
 use std::io::BufWriter;
 use std::path::PathBuf;
-//use tracing::info;
-
-/// Runs the conversion from trace to a profiler output.
-pub fn run(
-    trace_file: PathBuf,
-    dump_file: Option<PathBuf>,
-    output_file: Option<PathBuf>,
-    _: String, // always 'callgrind' currently
-) -> Result<()> {
-    if !trace::contains_standard_header(&trace_file)? {
-        return Err(Error::TraceFormat(trace_file));
-    }
-
-    let dump = dump::read(dump_file)?;
-    let profile = Profile::create(trace_file, &dump)?;
-
-    match output_file {
-        None => profile.write_callgrind(std::io::stdout()),
-        Some(output_file) => {
-            let output = output::open_w(output_file)?;
-            profile.write_callgrind(BufWriter::new(output))
-        }
-    }
-}
 
 /// Represents errors of the converter.
 #[derive(thiserror::Error, Debug)]
@@ -59,3 +38,26 @@ pub enum Error {
 
 /// Represents results.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Runs the conversion from trace to a profiler output.
+pub fn run(
+    trace_file: PathBuf,
+    dump_file: Option<PathBuf>,
+    output_file: Option<PathBuf>,
+    _: String, // always 'callgrind' currently
+) -> Result<()> {
+    if !trace::contains_standard_header(&trace_file)? {
+        return Err(Error::TraceFormat(trace_file));
+    }
+
+    let dump = dump::read(dump_file)?;
+    let profile = Profile::create(trace_file, &dump)?;
+
+    match output_file {
+        None => profile.write_callgrind(std::io::stdout()),
+        Some(output_file) => {
+            let output = output::open_w(output_file)?;
+            profile.write_callgrind(BufWriter::new(output))
+        }
+    }
+}

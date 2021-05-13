@@ -3,6 +3,7 @@
 use super::dump::Object;
 use super::trace::{self, Instruction};
 use super::{Error, Result};
+use crate::config::GROUND_ZERO;
 use maplit::hashmap;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -19,23 +20,26 @@ pub struct Profile {
     functions: Functions,
 }
 
-const GROUND_ZERO: &str = "ground zero";
-
 impl Profile {
+    /// Creates the initial instance of profile.
+    pub fn new(file: String) -> Result<Self> {
+        Ok(Profile {
+            file,
+            entrypoint: Call::new(GROUND_ZERO),
+            functions: hashmap! { GROUND_ZERO.to_string() => Function::new(GROUND_ZERO) },
+        })
+    }
+
     /// Reads the trace and creates the profile data.
     pub fn create(trace_file: PathBuf, _dump: &Object) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", &trace_file);
 
-        let file = trace_file
-            .to_str()
-            .ok_or_else(|| Error::Filename(trace_file.clone()))?
-            .to_string();
-
-        let mut prof = Profile {
-            file,
-            entrypoint: Call::new(GROUND_ZERO),
-            functions: hashmap! { GROUND_ZERO.to_string() => Function::new(GROUND_ZERO) },
-        };
+        let mut prof = Profile::new(
+            trace_file
+                .to_str()
+                .ok_or_else(|| Error::Filename(trace_file.clone()))?
+                .to_string(),
+        )?;
 
         let reader = BufReader::new(trace::open(&trace_file)?);
         parse_trace_file(reader, &mut prof)?;
@@ -86,6 +90,41 @@ impl Profile {
             self.functions.get_mut(&call.caller).unwrap().add_call(call);
         }
     }
+}
+
+/// Parses the trace file line by line building the Profile instance.
+pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
+    // reuse string in the loop for better performance
+    let mut line = String::with_capacity(512);
+    let mut bytes_read = usize::MAX;
+    let mut lc = 0_usize;
+
+    while bytes_read != 0 {
+        lc += 1;
+        line.clear();
+        bytes_read = reader
+            .read_line(&mut line)
+            .map_err(|e| Error::ReadLine(e, line.clone()))?;
+
+        let ix = Instruction::parse(&line, lc);
+        tracing::debug!("");
+        tracing::debug!("ix {:?}", &ix);
+        if let Err(Error::Skipped) = &ix {
+            //warn!("Skip '{}'", &line.trim());
+            continue;
+        }
+        let ix = ix?;
+
+        prof.increment_cost();
+        if ix.is_exit() {
+            prof.pop_call();
+        }
+        if ix.is_call() {
+            prof.push_call(Call::from(ix, lc)?);
+        }
+    }
+
+    Ok(())
 }
 
 /// Represents a function call.
@@ -143,7 +182,8 @@ impl Call {
             }
             None => {
                 call.caller = self.address.clone();
-                let _ = mem::replace(&mut *self.callee, Some(call));
+                let old = mem::replace(&mut *self.callee, Some(call));
+                assert!(old.is_none());
             }
         }
     }
@@ -199,42 +239,6 @@ impl Function {
     }
 }
 
-/// Parses the trace file line by line building the Profile instance.
-fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
-    // reuse string in the loop for better performance
-    let mut line = String::with_capacity(512);
-    let mut bytes_read = usize::MAX;
-    let mut lc = 0_usize;
-
-    while bytes_read != 0 {
-        lc += 1;
-        line.clear();
-        bytes_read = reader
-            .read_line(&mut line)
-            .map_err(|e| Error::ReadLine(e, line.clone()))?;
-        //tracing::debug!("{}", &line);
-
-        let ix = Instruction::parse(&line, lc);
-        tracing::debug!("");
-        tracing::debug!("ix {:?}", &ix);
-        if let Err(Error::Skipped) = &ix {
-            //warn!("Skip '{}'", &line.trim());
-            continue;
-        }
-        let ix = ix?;
-
-        prof.increment_cost();
-        if ix.is_exit() {
-            prof.pop_call();
-        }
-        if ix.is_call() {
-            prof.push_call(Call::from(ix, lc)?);
-        }
-    }
-
-    Ok(())
-}
-
 /// Writes information about calls of functions and their costs.
 fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> Result<()> {
     let mut statistics = HashMap::new();
@@ -264,5 +268,6 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         }
     }
 
+    output.flush()?;
     Ok(())
 }

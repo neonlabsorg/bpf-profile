@@ -10,12 +10,15 @@ use std::path::Path;
 
 /// Checks the trace file contains expected header line.
 pub fn contains_standard_header(filename: &Path) -> Result<bool> {
+    contains_standard_header_(BufReader::new(open(filename)?))
+}
+
+/// Checks the trace file contains expected header line.
+pub fn contains_standard_header_(mut reader: impl BufRead) -> Result<bool> {
     lazy_static! {
         static ref RE: Regex = Regex::new(r"\[.+\s+TRACE\s+.+BPF Program Instruction Trace")
             .expect("Incorrect regular expression");
     }
-
-    let mut reader = BufReader::new(open(filename)?);
 
     // reuse string in the loop for better performance
     let mut line = String::with_capacity(512);

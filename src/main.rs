@@ -19,7 +19,6 @@
 mod cli;
 mod config;
 mod gen;
-mod tests;
 
 fn main() {
     init_logger();
