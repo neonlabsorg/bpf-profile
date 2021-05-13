@@ -3,21 +3,27 @@
 use super::dump::Object;
 use super::trace::{self, Instruction};
 use super::{Error, Result};
+use crate::config::ENTRYPOINT;
+use maplit::hashmap;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
+
+type Functions = HashMap<String, Function>;
 
 /// Represents the profile.
 #[derive(Debug)]
 pub struct Profile {
     file: String,
     entrypoint: Call,
-    functions: HashMap<String, Function>,
+    functions: Functions,
 }
 
 impl Profile {
     /// Reads the trace and creates the profile data.
     pub fn create(trace_file: PathBuf, _dump: &Object) -> Result<Self> {
+        tracing::debug!("Profile.create {:?}", &trace_file);
+
         let file = trace_file
             .to_str()
             .ok_or_else(|| Error::Filename(trace_file.clone()))?
@@ -25,8 +31,8 @@ impl Profile {
 
         let mut prof = Profile {
             file,
-            entrypoint: Call::new("entrypoint"),
-            functions: HashMap::new(),
+            entrypoint: Call::new(ENTRYPOINT),
+            functions: hashmap! { ENTRYPOINT.to_string() => Function::new(ENTRYPOINT) },
         };
 
         let reader = BufReader::new(trace::open(trace_file)?);
@@ -49,14 +55,17 @@ impl Profile {
 
     /// Increments the total cost and the cost of current call.
     fn increment_cost(&mut self) {
-        self.entrypoint.increment_cost();
+        tracing::debug!("Profile.increment_cost");
+        self.entrypoint.increment_cost(&mut self.functions);
     }
 
     /// Adds next call to the stack.
     fn push_call(&mut self, call: Call) {
+        tracing::debug!("Profile.push_call {}", &call.address);
         let address = call.address.clone();
         self.entrypoint.push_call(call);
         if !self.functions.contains_key(&address) {
+            tracing::debug!("Add function {}", &address);
             self.functions
                 .insert(address.clone(), Function::new(&address));
         }
@@ -65,7 +74,10 @@ impl Profile {
     /// Removes finished call from the stack and adds it to the caller.
     fn pop_call(&mut self) {
         let call = self.entrypoint.pop_call();
-        self.functions.get_mut(&call.caller).unwrap().add_call(call);
+        tracing::debug!("Profile.pop_call {}", &call.address);
+        if !call.caller.is_empty() {
+            self.functions.get_mut(&call.caller).unwrap().add_call(call);
+        }
     }
 }
 
@@ -101,17 +113,19 @@ impl Call {
         }
         let mut pair = text.split_whitespace(); // => "call something"
         let _ = pair.next().ok_or_else(|| Error::Parsing(ix.text(), lc))?;
-        let addr = pair.next().ok_or_else(|| Error::Parsing(ix.text(), lc))?;
-        Ok(Call::new(addr))
+        let address = pair.next().ok_or_else(|| Error::Parsing(ix.text(), lc))?;
+        Ok(Call::new(address))
     }
 
     /// Increments the cost of this call.
-    fn increment_cost(&mut self) {
+    fn increment_cost(&mut self, functions: &mut Functions) {
+        tracing::debug!("Call {}.increment_cost", self.address);
         if self.frame == 0 {
             self.cost += 1;
+            functions.get_mut(&self.address).unwrap().increment_cost();
         } else {
-            let index = self.finished_calls + self.frame;
-            self.calls[index].increment_cost();
+            let index = self.finished_calls + self.frame - 1;
+            self.calls[index].increment_cost(functions);
         }
     }
 
@@ -122,7 +136,7 @@ impl Call {
             self.calls.push(call);
             self.frame += 1;
         } else {
-            let index = self.finished_calls + self.frame;
+            let index = self.finished_calls + self.frame - 1;
             call.caller = self.calls[index].address.clone();
             self.calls[index].push_call(call);
         }
@@ -130,14 +144,16 @@ impl Call {
 
     /// Removes current call from the stack.
     fn pop_call(&mut self) -> Call {
-        let index = self.finished_calls + self.frame;
-        let call = self.calls[index].clone();
-        if self.frame > 0 {
-            self.frame -= 1;
-        } else {
+        tracing::debug!("Call {}.pop_call", self.address);
+
+        if self.frame == 0 {
             self.finished_calls += 1;
+            return self.clone();
         }
-        call
+
+        let index = self.finished_calls + self.frame - 1;
+        self.frame -= 1;
+        self.calls[index].clone()
     }
 
     /// Returns cost of the call and of all enclosed calls.
@@ -158,17 +174,30 @@ struct Function {
 
 impl Function {
     /// Creates new function object.
-    fn new(addr: &str) -> Self {
+    fn new(address: &str) -> Self {
         Function {
-            address: addr.into(),
+            address: address.into(),
             cost: 0,
             calls: Vec::new(),
         }
     }
 
-    /// Adds enclosed call for this function.
+    /// Increments the immediate cost of the function.
+    fn increment_cost(&mut self) {
+        tracing::debug!("Function {}.increment_cost", self.address);
+        self.cost += 1;
+    }
+
+    /// Adds finished enclosed call for this function.
     fn add_call(&mut self, call: Call) {
         self.calls.push(call);
+    }
+
+    /// Returns cost of the function and of all enclosed calls.
+    fn total_cost(&self) -> usize {
+        self.calls
+            .iter()
+            .fold(self.cost, |sum, c| sum + c.total_cost())
     }
 }
 
@@ -185,8 +214,10 @@ fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> 
         bytes_read = reader
             .read_line(&mut line)
             .map_err(|e| Error::ReadLine(e, line.clone()))?;
+        //tracing::debug!("{}", &line);
 
         let ix = Instruction::parse(&line, lc);
+        tracing::debug!("ix {:?}", &ix);
         if let Err(Error::Skipped) = &ix {
             //warn!("Skip '{}'", &line.trim());
             continue;
@@ -206,14 +237,11 @@ fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> 
 }
 
 /// Writes information about calls of functions and their costs.
-fn write_callgrind_functions(
-    functions: &HashMap<String, Function>,
-    mut output: impl Write,
-) -> Result<()> {
+fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> Result<()> {
     for (a, f) in functions {
         writeln!(output)?;
         writeln!(output, "fn={}", a)?;
-        writeln!(output, "0 {}", f.cost)?;
+        writeln!(output, "0 {}", f.total_cost())?;
     }
 
     Ok(())

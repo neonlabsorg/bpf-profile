@@ -14,3 +14,6 @@ You can create the trace file by running the *Solana* cluster under `RUST_LOG`:
 ```export RUST_LOG=solana_rbpf=trace```
 
 Use the `bpf-profile help generate` command to list available options.
+
+When a trace file is ready, use following command: 
+```bpf-profile generate <trace file path>```

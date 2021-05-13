@@ -15,6 +15,7 @@ pub fn open(filename: PathBuf) -> Result<impl Read> {
 }
 
 /// Represents trace instruction (call or another).
+#[derive(Debug)]
 pub struct Instruction {
     _pc: usize,
     text: String,
