@@ -17,6 +17,10 @@ pub fn run(
     output_file: Option<PathBuf>,
     _: String, // always 'callgrind' currently
 ) -> Result<()> {
+    if !trace::contains_standard_header(&trace_file)? {
+        return Err(Error::TraceFormat(trace_file));
+    }
+
     let dump = dump::read(dump_file)?;
     let profile = Profile::create(trace_file, &dump)?;
 
@@ -40,6 +44,8 @@ pub enum Error {
     #[error("Cannot read line '{1}': {0}")]
     ReadLine(#[source] std::io::Error, String),
 
+    #[error("Unsupported format of trace file '{0}'")]
+    TraceFormat(PathBuf),
     #[error("Skipped input")]
     Skipped,
     #[error("Cannot parse trace '{0}' at line {1}")]

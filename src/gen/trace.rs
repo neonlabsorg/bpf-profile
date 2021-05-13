@@ -4,13 +4,39 @@ use super::{Error, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::fs::File;
-use std::io::Read;
-use std::path::PathBuf;
+use std::io::{BufRead, BufReader, Read};
+use std::path::Path;
 //use tracing::info;
 
+/// Checks the trace file contains expected header line.
+pub fn contains_standard_header(filename: &Path) -> Result<bool> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"\[.+\s+TRACE\s+.+BPF Program Instruction Trace")
+            .expect("Incorrect regular expression");
+    }
+
+    let mut reader = BufReader::new(open(filename)?);
+
+    // reuse string in the loop for better performance
+    let mut line = String::with_capacity(512);
+    let mut bytes_read = usize::MAX;
+
+    while bytes_read != 0 {
+        line.clear();
+        bytes_read = reader
+            .read_line(&mut line)
+            .map_err(|e| Error::ReadLine(e, line.clone()))?;
+        if RE.is_match(&line) {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 /// Opens the trace file for reading.
-pub fn open(filename: PathBuf) -> Result<impl Read> {
-    let file = File::open(&filename).map_err(|e| Error::OpenFile(e, filename))?;
+pub fn open(filename: &Path) -> Result<impl Read> {
+    let file = File::open(&filename).map_err(|e| Error::OpenFile(e, filename.into()))?;
     Ok(file)
 }
 

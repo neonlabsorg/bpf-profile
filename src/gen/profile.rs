@@ -35,7 +35,7 @@ impl Profile {
             functions: hashmap! { ENTRYPOINT.to_string() => Function::new(ENTRYPOINT) },
         };
 
-        let reader = BufReader::new(trace::open(trace_file)?);
+        let reader = BufReader::new(trace::open(&trace_file)?);
         parse_trace_file(reader, &mut prof)?;
         Ok(prof)
     }
@@ -87,8 +87,6 @@ struct Call {
     address: String,
     caller: String,
     cost: usize,
-    finished_calls: usize,
-    frame: usize,
     calls: Vec<Call>,
 }
 
@@ -99,8 +97,6 @@ impl Call {
             address: address.into(),
             caller: String::default(),
             cost: 0,
-            finished_calls: 0,
-            frame: 0,
             calls: Vec::new(),
         }
     }
@@ -120,40 +116,35 @@ impl Call {
     /// Increments the cost of this call.
     fn increment_cost(&mut self, functions: &mut Functions) {
         tracing::debug!("Call {}.increment_cost", self.address);
-        if self.frame == 0 {
+        if self.calls.is_empty() {
             self.cost += 1;
             functions.get_mut(&self.address).unwrap().increment_cost();
         } else {
-            let index = self.finished_calls + self.frame - 1;
-            self.calls[index].increment_cost(functions);
+            let last_index = self.calls.len() - 1;
+            self.calls[last_index].increment_cost(functions);
         }
     }
 
     /// Adds next call to the stack.
     fn push_call(&mut self, mut call: Call) {
-        if self.frame == 0 {
+        tracing::debug!("Call {}.push_call {}", self.address, call.address);
+        if self.calls.is_empty() {
             call.caller = self.address.clone();
             self.calls.push(call);
-            self.frame += 1;
         } else {
-            let index = self.finished_calls + self.frame - 1;
-            call.caller = self.calls[index].address.clone();
-            self.calls[index].push_call(call);
+            let last_index = self.calls.len() - 1;
+            call.caller = self.calls[last_index].address.clone();
+            self.calls[last_index].push_call(call);
         }
     }
 
     /// Removes current call from the stack.
     fn pop_call(&mut self) -> Call {
         tracing::debug!("Call {}.pop_call", self.address);
-
-        if self.frame == 0 {
-            self.finished_calls += 1;
+        if self.calls.is_empty() {
             return self.clone();
         }
-
-        let index = self.finished_calls + self.frame - 1;
-        self.frame -= 1;
-        self.calls[index].clone()
+        self.calls.pop().unwrap()
     }
 
     /// Returns cost of the call and of all enclosed calls.
@@ -164,7 +155,7 @@ impl Call {
     }
 }
 
-/// Represents a function.
+/// Represents a function which will be dumped into a profile.
 #[derive(Debug)]
 struct Function {
     address: String,
@@ -190,6 +181,7 @@ impl Function {
 
     /// Adds finished enclosed call for this function.
     fn add_call(&mut self, call: Call) {
+        tracing::debug!("Function {}.add_call {}", self.address, call.address);
         self.calls.push(call);
     }
 
@@ -217,6 +209,7 @@ fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> 
         //tracing::debug!("{}", &line);
 
         let ix = Instruction::parse(&line, lc);
+        tracing::debug!("");
         tracing::debug!("ix {:?}", &ix);
         if let Err(Error::Skipped) = &ix {
             //warn!("Skip '{}'", &line.trim());
@@ -243,6 +236,8 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         writeln!(output, "fn={}", a)?;
         writeln!(output, "0 {}", f.total_cost())?;
     }
+
+    dbg!(&functions);
 
     Ok(())
 }

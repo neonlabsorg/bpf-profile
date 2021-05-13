@@ -15,5 +15,35 @@ You can create the trace file by running the *Solana* cluster under `RUST_LOG`:
 
 Use the `bpf-profile help generate` command to list available options.
 
-When a trace file is ready, use following command: 
-```bpf-profile generate <trace file path>```
+When a trace file is ready, use the following command:
+```bpf-profile generate <trace file path> -o callgrind.out```
+which should produce file containing something like
+```
+# callgrind format
+events: Instructions
+
+fl=file1.c
+fn=main
+16 20
+cfn=func1
+calls=1 50
+16 400
+cfi=file2.c
+cfn=func2
+calls=3 20
+16 400
+
+fn=func1
+51 100
+cfi=file2.c
+cfn=func2
+calls=2 20
+51 300
+
+fl=file2.c
+fn=func2
+20 700
+```
+
+That file can be loaded by standard tools `callgrind_annotate` and `QCacheGrind`
+for analysis.
