@@ -52,8 +52,7 @@ pub enum Error {
     Parsing(String, usize),
     #[error("Instruction is not a call: '{0}'")]
     NotCall(String),
-    //#[error("Stack is empty on exit")]
-    //EmptyStack,
+
     #[error("Input/output error")]
     Io(#[from] std::io::Error),
 }

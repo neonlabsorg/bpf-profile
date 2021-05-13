@@ -47,7 +47,11 @@ impl Profile {
         writeln!(output, "version: 1")?;
         writeln!(output, "creator: bpf-profile")?;
         writeln!(output, "events: Instructions")?;
-        writeln!(output, "totals: {}", self.entrypoint.total_cost())?;
+        writeln!(
+            output,
+            "totals: {}",
+            self.functions[ENTRYPOINT].total_cost()
+        )?;
         writeln!(output, "fl={}", self.file)?;
         write_callgrind_functions(&self.functions, output)?;
         Ok(())
@@ -65,7 +69,7 @@ impl Profile {
         let address = call.address.clone();
         self.entrypoint.push_call(call);
         if !self.functions.contains_key(&address) {
-            tracing::debug!("Add function {}", &address);
+            tracing::debug!("Add function to registry: {}", &address);
             self.functions
                 .insert(address.clone(), Function::new(&address));
         }
@@ -75,6 +79,7 @@ impl Profile {
     fn pop_call(&mut self) {
         let call = self.entrypoint.pop_call();
         tracing::debug!("Profile.pop_call {}", &call.address);
+        //dbg!(&call);
         if !call.caller.is_empty() {
             self.functions.get_mut(&call.caller).unwrap().add_call(call);
         }
@@ -115,43 +120,43 @@ impl Call {
 
     /// Increments the cost of this call.
     fn increment_cost(&mut self, functions: &mut Functions) {
-        tracing::debug!("Call {}.increment_cost", self.address);
+        tracing::debug!("Call({}).increment_cost", self.address);
         if self.calls.is_empty() {
             self.cost += 1;
             functions.get_mut(&self.address).unwrap().increment_cost();
         } else {
             let last_index = self.calls.len() - 1;
+            assert!(last_index == 0);
             self.calls[last_index].increment_cost(functions);
         }
     }
 
     /// Adds next call to the stack.
     fn push_call(&mut self, mut call: Call) {
-        tracing::debug!("Call {}.push_call {}", self.address, call.address);
+        tracing::debug!("Call({}).push_call {}", self.address, call.address);
         if self.calls.is_empty() {
             call.caller = self.address.clone();
             self.calls.push(call);
         } else {
             let last_index = self.calls.len() - 1;
-            call.caller = self.calls[last_index].address.clone();
+            assert!(last_index == 0);
             self.calls[last_index].push_call(call);
         }
     }
 
     /// Removes current call from the stack.
     fn pop_call(&mut self) -> Call {
-        tracing::debug!("Call {}.pop_call", self.address);
-        if self.calls.is_empty() {
-            return self.clone();
+        tracing::debug!("Call({}).pop_call", self.address);
+        assert!(!self.calls.is_empty());
+        let last_index = self.calls.len() - 1;
+        assert!(last_index == 0);
+        if !self.calls[last_index].calls.is_empty() {
+            self.calls[last_index].pop_call()
+        } else {
+            let call = self.calls.pop().unwrap();
+            self.cost += call.cost;
+            call
         }
-        self.calls.pop().unwrap()
-    }
-
-    /// Returns cost of the call and of all enclosed calls.
-    fn total_cost(&self) -> usize {
-        self.calls
-            .iter()
-            .fold(self.cost, |sum, c| sum + c.total_cost())
     }
 }
 
@@ -175,21 +180,19 @@ impl Function {
 
     /// Increments the immediate cost of the function.
     fn increment_cost(&mut self) {
-        tracing::debug!("Function {}.increment_cost", self.address);
+        tracing::debug!("Function({}).increment_cost", self.address);
         self.cost += 1;
     }
 
     /// Adds finished enclosed call for this function.
     fn add_call(&mut self, call: Call) {
-        tracing::debug!("Function {}.add_call {}", self.address, call.address);
+        tracing::debug!("Function({}).add_call {}", self.address, call.address);
         self.calls.push(call);
     }
 
-    /// Returns cost of the function and of all enclosed calls.
+    /// Returns cost of the function and of it's enclosed calls.
     fn total_cost(&self) -> usize {
-        self.calls
-            .iter()
-            .fold(self.cost, |sum, c| sum + c.total_cost())
+        self.calls.iter().fold(self.cost, |sum, c| sum + c.cost)
     }
 }
 
@@ -231,13 +234,28 @@ fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> 
 
 /// Writes information about calls of functions and their costs.
 fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> Result<()> {
+    let mut statistics = HashMap::new();
     for (a, f) in functions {
         writeln!(output)?;
         writeln!(output, "fn={}", a)?;
-        writeln!(output, "0 {}", f.total_cost())?;
+        writeln!(output, "0 {}", f.cost)?;
+        statistics.clear();
+        for c in &f.calls {
+            if !statistics.contains_key(&c.address) {
+                statistics.insert(c.address.clone(), (1, c.cost));
+            } else {
+                let mut stat = statistics[&c.address];
+                stat.0 += 1;
+                stat.1 += c.cost;
+                statistics.insert(c.address.clone(), stat);
+            }
+        }
+        for (a, s) in &statistics {
+            writeln!(output, "cfn={}", a)?;
+            writeln!(output, "calls={} {}", s.0, 0)?;
+            writeln!(output, "{} {}", 0, s.1)?;
+        }
     }
-
-    dbg!(&functions);
-
+    //dbg!(&functions);
     Ok(())
 }
