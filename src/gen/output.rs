@@ -9,7 +9,7 @@ use std::path::PathBuf;
 /// Opens output file for writing.
 pub fn open_w(filename: PathBuf) -> Result<impl Write> {
     let file = OpenOptions::new()
-        .append(true)
+        .write(true)
         .create(true)
         .open(&filename)
         .map_err(|e| Error::OpenFile(e, filename))?;

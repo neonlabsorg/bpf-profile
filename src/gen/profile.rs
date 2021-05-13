@@ -3,7 +3,7 @@
 use super::dump::Object;
 use super::trace::{self, Instruction};
 use super::{Error, Result};
-use crate::config::ENTRYPOINT;
+use crate::config::GROUND_ZERO;
 use maplit::hashmap;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
@@ -31,8 +31,8 @@ impl Profile {
 
         let mut prof = Profile {
             file,
-            entrypoint: Call::new(ENTRYPOINT),
-            functions: hashmap! { ENTRYPOINT.to_string() => Function::new(ENTRYPOINT) },
+            entrypoint: Call::new(GROUND_ZERO),
+            functions: hashmap! { GROUND_ZERO.to_string() => Function::new(GROUND_ZERO) },
         };
 
         let reader = BufReader::new(trace::open(&trace_file)?);
@@ -50,7 +50,7 @@ impl Profile {
         writeln!(
             output,
             "totals: {}",
-            self.functions[ENTRYPOINT].total_cost()
+            self.functions[GROUND_ZERO].total_cost()
         )?;
         writeln!(output, "fl={}", self.file)?;
         write_callgrind_functions(&self.functions, output)?;
@@ -235,7 +235,11 @@ fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> 
 /// Writes information about calls of functions and their costs.
 fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> Result<()> {
     let mut statistics = HashMap::new();
+
     for (a, f) in functions {
+        if a == GROUND_ZERO {
+            continue;
+        }
         writeln!(output)?;
         writeln!(output, "fn={}", a)?;
         writeln!(output, "0 {}", f.cost)?;
@@ -256,6 +260,6 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
             writeln!(output, "{} {}", 0, s.1)?;
         }
     }
-    //dbg!(&functions);
+
     Ok(())
 }
