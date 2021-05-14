@@ -1,6 +1,6 @@
 [package]
 name = "bpf-profile"
-version = "0.0.1"
+version = "1.0.0"
 authors = ["NeonLabs Maintainers <maintainers@cyber-core.dev>"]
 edition = "2018"
 

@@ -16,7 +16,7 @@ type Functions = HashMap<String, Function>;
 #[derive(Debug)]
 pub struct Profile {
     file: String,
-    entrypoint: Call,
+    ground: Call,
     functions: Functions,
 }
 
@@ -25,7 +25,7 @@ impl Profile {
     pub fn new(file: String) -> Result<Self> {
         Ok(Profile {
             file,
-            entrypoint: Call::new(GROUND_ZERO),
+            ground: Call::new(GROUND_ZERO),
             functions: hashmap! { GROUND_ZERO.to_string() => Function::new(GROUND_ZERO) },
         })
     }
@@ -66,16 +66,16 @@ impl Profile {
     /// Increments the total cost and the cost of current call.
     fn increment_cost(&mut self) {
         tracing::debug!("Profile.increment_cost");
-        self.entrypoint.increment_cost(&mut self.functions);
+        self.ground.increment_cost(&mut self.functions);
     }
 
     /// Adds next call to the call stack.
     fn push_call(&mut self, call: Call) {
         tracing::debug!("Profile.push_call {}", &call.address);
         let address = call.address.clone();
-        self.entrypoint.push_call(call);
+        self.ground.push_call(call);
         if !self.functions.contains_key(&address) {
-            tracing::debug!("Add function to registry: {}", &address);
+            tracing::debug!("Add function to the registry: {}", &address);
             self.functions
                 .insert(address.clone(), Function::new(&address));
         }
@@ -83,11 +83,14 @@ impl Profile {
 
     /// Removes finished call from the call stack and adds it to the caller.
     fn pop_call(&mut self) {
-        let call = self.entrypoint.pop_call();
+        let call = self.ground.pop_call();
         tracing::debug!("Profile.pop_call {}", &call.address);
-        //dbg!(&call);
         if !call.caller.is_empty() {
-            self.functions.get_mut(&call.caller).unwrap().add_call(call);
+            let f = self
+                .functions
+                .get_mut(&call.caller)
+                .expect("Caller not found in registry of functions");
+            f.add_call(call);
         }
     }
 }
@@ -168,7 +171,10 @@ impl Call {
             }
             None => {
                 self.cost += 1;
-                functions.get_mut(&self.address).unwrap().increment_cost();
+                let f = functions
+                    .get_mut(&self.address)
+                    .expect("Call address not found in registry of functions");
+                f.increment_cost();
             }
         }
     }
@@ -196,7 +202,7 @@ impl Call {
         if callee.callee.is_some() {
             callee.pop_call()
         } else {
-            let call = mem::replace(&mut *self.callee, None).unwrap();
+            let call = self.callee.take().unwrap();
             self.cost += call.cost;
             call
         }

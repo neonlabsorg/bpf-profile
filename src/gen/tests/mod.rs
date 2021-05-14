@@ -34,6 +34,7 @@ fn generate() {
     let mut output = Vec::<u8>::new();
     let r = prof.write_callgrind(&mut output);
     assert!(r.is_ok());
+    assert_eq!(output.len(), 206);
     //dbg!(std::str::from_utf8(&output).unwrap());
     // Functions may go in random order, so check each separately
     assert!(output.starts_with(mock::CALLGRIND_HEADER));
