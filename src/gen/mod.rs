@@ -1,6 +1,7 @@
 //! bpf-profile generate command implementation.
 
 mod dump;
+mod fileutil;
 mod profile;
 mod trace;
 
@@ -37,7 +38,7 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 use profile::Profile;
-use std::io::{BufWriter, Write};
+use std::io::BufWriter;
 
 /// Runs the conversion from trace to a profiler output.
 pub fn run(
@@ -51,23 +52,13 @@ pub fn run(
     }
 
     let dump = dump::read(dump_file)?;
-    let profile = Profile::create(trace_file, &dump)?;
+    let profile = Profile::create(trace_file, dump)?;
 
     match output_file {
         None => profile.write_callgrind(std::io::stdout()),
         Some(output_file) => {
-            let output = open_w(output_file)?;
+            let output = fileutil::open_w(&output_file)?;
             profile.write_callgrind(BufWriter::new(output))
         }
     }
-}
-
-/// Opens output file for writing; rewrites existing.
-fn open_w(filename: PathBuf) -> Result<impl Write> {
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(&filename)
-        .map_err(|e| Error::OpenFile(e, filename))?;
-    Ok(file)
 }

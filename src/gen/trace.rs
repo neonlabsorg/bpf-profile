@@ -1,16 +1,14 @@
 //! bpf-profile trace module.
 
-use super::{Error, Result};
+use super::{fileutil, Error, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::path::Path;
-//use tracing::info;
 
 /// Checks the trace file contains expected header line.
 pub fn contains_standard_header(filename: &Path) -> Result<bool> {
-    contains_standard_header_(BufReader::new(open(filename)?))
+    contains_standard_header_(BufReader::new(fileutil::open(filename)?))
 }
 
 /// Checks the trace file contains expected header line.
@@ -35,12 +33,6 @@ pub fn contains_standard_header_(mut reader: impl BufRead) -> Result<bool> {
     }
 
     Ok(false)
-}
-
-/// Opens the trace file for reading.
-pub fn open(filename: &Path) -> Result<impl Read> {
-    let file = File::open(&filename).map_err(|e| Error::OpenFile(e, filename.into()))?;
-    Ok(file)
 }
 
 /// Represents trace instruction (call or another).

@@ -39,7 +39,7 @@ pub enum Command {
             parse(from_os_str),
             short,
             long,
-            help = "Optional path to generated file (STDOUT otherwise)"
+            help = "Path to generated file [default: stdout]"
         )]
         output: Option<PathBuf>,
 

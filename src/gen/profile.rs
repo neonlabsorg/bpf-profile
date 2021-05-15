@@ -1,16 +1,16 @@
 //! bpf-profile implementation of the profile struct.
 
-use super::dump::Object;
-use super::trace::{self, Instruction};
-use super::{Error, Result};
-use crate::config::GROUND_ZERO;
+use super::dump::Resolver;
+use super::trace::Instruction;
+use super::{fileutil, Error, Result};
+use crate::config::{Address, GROUND_ZERO};
 use maplit::hashmap;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::mem;
 use std::path::PathBuf;
 
-type Functions = HashMap<String, Function>;
+type Functions = HashMap<Address, Function>;
 
 /// Represents the profile.
 #[derive(Debug)]
@@ -18,20 +18,22 @@ pub struct Profile {
     file: String,
     ground: Call,
     functions: Functions,
+    dump: Resolver,
 }
 
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(file: String) -> Result<Self> {
+    pub fn new(file: String, dump: Resolver) -> Result<Self> {
         Ok(Profile {
             file,
             ground: Call::new(GROUND_ZERO),
-            functions: hashmap! { GROUND_ZERO.to_string() => Function::new(GROUND_ZERO) },
+            functions: hashmap! { GROUND_ZERO => Function::new(GROUND_ZERO, &dump) },
+            dump,
         })
     }
 
     /// Reads the trace and creates the profile data.
-    pub fn create(trace_file: PathBuf, _dump: &Object) -> Result<Self> {
+    pub fn create(trace_file: PathBuf, dump: Resolver) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", &trace_file);
 
         let mut prof = Profile::new(
@@ -39,9 +41,10 @@ impl Profile {
                 .to_str()
                 .ok_or_else(|| Error::Filename(trace_file.clone()))?
                 .to_string(),
+            dump,
         )?;
 
-        let reader = BufReader::new(trace::open(&trace_file)?);
+        let reader = BufReader::new(fileutil::open(&trace_file)?);
         parse_trace_file(reader, &mut prof)?;
         Ok(prof)
     }
@@ -56,7 +59,7 @@ impl Profile {
         writeln!(
             output,
             "totals: {}",
-            self.functions[GROUND_ZERO].total_cost()
+            self.functions[&GROUND_ZERO].total_cost()
         )?;
         writeln!(output, "fl={}", self.file)?;
         write_callgrind_functions(&self.functions, output)?;
@@ -71,13 +74,14 @@ impl Profile {
 
     /// Adds next call to the call stack.
     fn push_call(&mut self, call: Call) {
-        tracing::debug!("Profile.push_call {}", &call.address);
-        let address = call.address.clone();
+        let address = call.address;
+        tracing::debug!("Profile.push_call {}", address);
         self.ground.push_call(call);
+        #[allow(clippy::map_entry)]
         if !self.functions.contains_key(&address) {
-            tracing::debug!("Add function to the registry: {}", &address);
+            tracing::debug!("Add function to the registry: {}", address);
             self.functions
-                .insert(address.clone(), Function::new(&address));
+                .insert(address, Function::new(address, &self.dump));
         }
     }
 
@@ -85,7 +89,7 @@ impl Profile {
     fn pop_call(&mut self) {
         let call = self.ground.pop_call();
         tracing::debug!("Profile.pop_call {}", &call.address);
-        if !call.caller.is_empty() {
+        if !call.is_ground() {
             let f = self
                 .functions
                 .get_mut(&call.caller)
@@ -133,18 +137,18 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
 /// Represents a function call.
 #[derive(Clone, Debug)]
 struct Call {
-    address: String,
-    caller: String,
+    address: Address,
+    caller: Address,
     cost: usize,
     callee: Box<Option<Call>>,
 }
 
 impl Call {
     /// Creates new call object.
-    fn new(address: &str) -> Self {
+    fn new(address: Address) -> Self {
         Call {
-            address: address.into(),
-            caller: String::default(),
+            address,
+            caller: Address::default(),
             cost: 0,
             callee: Box::new(None),
         }
@@ -159,7 +163,12 @@ impl Call {
         let mut pair = text.split_whitespace(); // => "call something"
         let _ = pair.next().ok_or_else(|| Error::Parsing(ix.text(), lc))?;
         let address = pair.next().ok_or_else(|| Error::Parsing(ix.text(), lc))?;
-        Ok(Call::new(address))
+        Ok(Call::new(hex_str_to_address(address)))
+    }
+
+    /// Checks if the call is the root ("ground zero").
+    fn is_ground(&self) -> bool {
+        self.address == GROUND_ZERO
     }
 
     /// Increments the cost of this call.
@@ -187,7 +196,7 @@ impl Call {
                 callee.push_call(call);
             }
             None => {
-                call.caller = self.address.clone();
+                call.caller = self.address;
                 let old = mem::replace(&mut *self.callee, Some(call));
                 assert!(old.is_none());
             }
@@ -209,19 +218,27 @@ impl Call {
     }
 }
 
+/// Converts a hex number string representation to integer Address.
+fn hex_str_to_address(s: &str) -> Address {
+    let a = s.trim_start_matches("0x");
+    Address::from_str_radix(a, 16).expect("Invalid address")
+}
+
 /// Represents a function which will be dumped into a profile.
 #[derive(Debug)]
 struct Function {
-    address: String,
+    address: Address,
+    name: String,
     cost: usize,
     calls: Vec<Call>,
 }
 
 impl Function {
     /// Creates new function object.
-    fn new(address: &str) -> Self {
+    fn new(address: Address, dump: &Resolver) -> Self {
         Function {
-            address: address.into(),
+            address,
+            name: dump.resolve(address),
             cost: 0,
             calls: Vec::new(),
         }
@@ -250,25 +267,26 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
     let mut statistics = HashMap::new();
 
     for (a, f) in functions {
-        if a == GROUND_ZERO {
+        if *a == GROUND_ZERO {
             continue;
         }
         writeln!(output)?;
-        writeln!(output, "fn={}", a)?;
+        writeln!(output, "fn={}", f.name)?;
         writeln!(output, "0 {}", f.cost)?;
         statistics.clear();
         for c in &f.calls {
+            #[allow(clippy::map_entry)]
             if !statistics.contains_key(&c.address) {
-                statistics.insert(c.address.clone(), (1, c.cost));
+                statistics.insert(c.address, (1, c.cost));
             } else {
                 let mut stat = statistics[&c.address];
                 stat.0 += 1;
                 stat.1 += c.cost;
-                statistics.insert(c.address.clone(), stat);
+                statistics.insert(c.address, stat);
             }
         }
         for (a, s) in &statistics {
-            writeln!(output, "cfn={}", a)?;
+            writeln!(output, "cfn={}", functions[a].name)?;
             writeln!(output, "calls={} {}", s.0, 0)?;
             writeln!(output, "{} {}", 0, s.1)?;
         }
