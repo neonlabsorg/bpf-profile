@@ -1,16 +1,9 @@
 //! bpf-profile implementation of the profile struct.
 
 use super::dump::Resolver;
-use super::trace::Instruction;
-use super::{fileutil, Error, Result};
-use crate::config::{Address, GROUND_ZERO};
-use maplit::hashmap;
-use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
-use std::mem;
-use std::path::PathBuf;
+use crate::config::{Address, Map, GROUND_ZERO};
 
-type Functions = HashMap<Address, Function>;
+type Functions = Map<Address, Function>;
 
 /// Represents the profile.
 #[derive(Debug)]
@@ -21,13 +14,19 @@ pub struct Profile {
     dump: Resolver,
 }
 
+use super::{fileutil, Error, Result};
+use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
+
 impl Profile {
     /// Creates the initial instance of profile.
     pub fn new(file: String, dump: Resolver) -> Result<Self> {
+        let mut functions = Map::new();
+        functions.insert(GROUND_ZERO, Function::new(GROUND_ZERO, &dump));
         Ok(Profile {
             file,
             ground: Call::new(GROUND_ZERO),
-            functions: hashmap! { GROUND_ZERO => Function::new(GROUND_ZERO, &dump) },
+            functions,
             dump,
         })
     }
@@ -98,6 +97,8 @@ impl Profile {
         }
     }
 }
+
+use super::trace::Instruction;
 
 /// Parses the trace file line by line building the Profile instance.
 pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
@@ -197,7 +198,7 @@ impl Call {
             }
             None => {
                 call.caller = self.address;
-                let old = mem::replace(&mut *self.callee, Some(call));
+                let old = std::mem::replace(&mut *self.callee, Some(call));
                 assert!(old.is_none());
             }
         }
@@ -264,7 +265,7 @@ impl Function {
 
 /// Writes information about calls of functions and their costs.
 fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> Result<()> {
-    let mut statistics = HashMap::new();
+    let mut statistics = Map::new();
 
     for (a, f) in functions {
         if *a == GROUND_ZERO {

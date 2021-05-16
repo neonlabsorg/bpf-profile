@@ -14,8 +14,8 @@ pub fn contains_standard_header(filename: &Path) -> Result<bool> {
 /// Checks the trace file contains expected header line.
 pub fn contains_standard_header_(mut reader: impl BufRead) -> Result<bool> {
     lazy_static! {
-        static ref RE: Regex = Regex::new(r"\[.+\s+TRACE\s+.+BPF Program Instruction Trace")
-            .expect("Incorrect regular expression");
+        static ref RE: Regex =
+            Regex::new(r"\[.+\s+TRACE\s+.+BPF Program Instruction Trace").expect("Invalid regex");
     }
 
     // reuse string in the loop for better performance
@@ -47,7 +47,7 @@ impl Instruction {
     pub fn parse(s: &str, lc: usize) -> Result<Self> {
         lazy_static! {
             static ref RE: Regex =
-                Regex::new(r"\d+\s+\[.+\]\s+(\d+):\s+(.+)").expect("Incorrect regular expression");
+                Regex::new(r"\d+\s+\[.+\]\s+(\d+):\s+(.+)").expect("Invalid regex");
         }
 
         if let Some(caps) = RE.captures(s) {
@@ -66,12 +66,12 @@ impl Instruction {
         self.text.clone()
     }
 
-    /// Checks if the instruction is a call of a function.
+    /// Checks if the instruction is a call of function.
     pub fn is_call(&self) -> bool {
         self.text.starts_with("call")
     }
 
-    /// Checks if the instruction is exit of a function.
+    /// Checks if the instruction is exit of function.
     pub fn is_exit(&self) -> bool {
         self.text == "exit"
     }

@@ -21,8 +21,12 @@ pub enum Error {
     #[error("Cannot read line '{1}': {0}")]
     ReadLine(#[source] std::io::Error, String),
 
-    #[error("Unsupported format of trace file '{0}'")]
-    TraceFormat(PathBuf),
+    #[error("Unsupported format of trace file")]
+    TraceFormat,
+    #[error("Unsupported format of dump file")]
+    DumpFormat,
+    #[error("Dump file without disassembly")]
+    DumpFormatNoDisasm,
     #[error("Skipped input")]
     Skipped,
     #[error("Cannot parse trace '{0}' at line {1}")]
@@ -48,7 +52,7 @@ pub fn run(
     _: String, // always 'callgrind' currently
 ) -> Result<()> {
     if !trace::contains_standard_header(&trace_file)? {
-        return Err(Error::TraceFormat(trace_file));
+        return Err(Error::TraceFormat);
     }
 
     let dump = dump::read(dump_file)?;
