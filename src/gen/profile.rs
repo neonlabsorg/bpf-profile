@@ -1,7 +1,7 @@
 //! bpf-profile implementation of the profile struct.
 
 use super::dump::Resolver;
-use crate::config::{Address, Map, GROUND_ZERO};
+use crate::config::{Address, Map, ProgramCounter, GROUND_ZERO};
 
 type Functions = Map<Address, Function>;
 
@@ -72,15 +72,15 @@ impl Profile {
     }
 
     /// Adds next call to the call stack.
-    fn push_call(&mut self, call: Call) {
+    fn push_call(&mut self, call: Call, first_pc: ProgramCounter) {
         let address = call.address;
         tracing::debug!("Profile.push_call {}", address);
         self.ground.push_call(call);
         #[allow(clippy::map_entry)]
         if !self.functions.contains_key(&address) {
             tracing::debug!("Add function to the registry: {}", address);
-            self.functions
-                .insert(address, Function::new(address, &self.dump));
+            let func = Function::new(address, first_pc, &mut self.dump);
+            self.functions.insert(address, func);
         }
     }
 
@@ -102,31 +102,51 @@ use super::trace::Instruction;
 
 /// Parses the trace file line by line building the Profile instance.
 pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
-    // reuse string in the loop for better performance
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
 
     while bytes_read != 0 {
-        lc += 1;
-        bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+        if line.is_empty() {
+            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+            lc += 1;
+        }
 
-        let ix = Instruction::parse(&line, lc);
-        tracing::debug!("");
-        tracing::debug!("ix {:?}", &ix);
+        let ix = Instruction::parse(&line);
         if let Err(Error::TraceSkipped) = &ix {
             //warn!("Skip '{}'", &line.trim());
+            line.clear();
             continue;
         }
-        let ix = ix?;
+        let mut ix = ix?;
 
         prof.increment_cost();
+
         if ix.is_exit() {
             prof.pop_call();
+            line.clear();
+            continue;
         }
-        if ix.is_call() {
-            prof.push_call(Call::from(ix, lc)?);
+
+        if !ix.is_call() {
+            line.clear();
+            continue;
         }
+
+        // Handle sequence of enclosed calls as well:
+        // 604: call 0xcb3fc071
+        // 588: call 0x8e0001f9
+        // 1024: call 0x8bf38212
+        while ix.is_call() {
+            let call = Call::from(ix, lc)?;
+            // Read next line — the first instruction of the call
+            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+            lc += 1;
+            ix = Instruction::parse(&line)?;
+            prof.increment_cost();
+            prof.push_call(call, ix.program_counter());
+        }
+        // Keep here the last non-call line to process further
     }
 
     Ok(())
@@ -231,6 +251,7 @@ fn hex_str_to_address(s: &str) -> Address {
 struct Function {
     address: Address,
     name: String,
+    pc: ProgramCounter,
     cost: usize,
     calls: Vec<Call>,
 }
@@ -241,17 +262,19 @@ impl Function {
         Function {
             address: GROUND_ZERO,
             name: "GROUND_ZERO".into(),
+            pc: 0,
             cost: 0,
             calls: Vec::new(),
         }
     }
 
     /// Creates new function object.
-    fn new(address: Address, dump: &Resolver) -> Self {
+    fn new(address: Address, first_pc: ProgramCounter, dump: &mut Resolver) -> Self {
         assert_ne!(address, GROUND_ZERO);
         Function {
             address,
-            name: dump.resolve(address),
+            name: dump.resolve(address, first_pc),
+            pc: first_pc,
             cost: 0,
             calls: Vec::new(),
         }
@@ -285,7 +308,7 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         }
         writeln!(output)?;
         writeln!(output, "fn={}", f.name)?;
-        writeln!(output, "0 {}", f.cost)?;
+        writeln!(output, "{} {}", f.pc, f.cost)?;
         statistics.clear();
         for c in &f.calls {
             #[allow(clippy::map_entry)]
@@ -300,8 +323,8 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         }
         for (a, s) in &statistics {
             writeln!(output, "cfn={}", functions[a].name)?;
-            writeln!(output, "calls={} {}", s.0, 0)?;
-            writeln!(output, "{} {}", 0, s.1)?;
+            writeln!(output, "calls={} {}", s.0, functions[a].pc)?;
+            writeln!(output, "{} {}", f.pc, s.1)?;
         }
     }
 

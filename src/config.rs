@@ -7,7 +7,10 @@ pub const DEFAULT_CONFIG: &str = "bpf-profile.conf";
 pub const FORMATS: &[&str] = &["callgrind"];
 pub const DEFAULT_FORMAT: &str = "callgrind";
 
+pub type ProgramCounter = usize;
+pub type Index = usize;
 pub type Address = usize;
+
 pub const GROUND_ZERO: Address = Address::MAX;
 
 #[cfg(not(test))]

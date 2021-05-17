@@ -1,6 +1,7 @@
 //! bpf-profile trace module.
 
 use super::{fileutil, Error, Result};
+use crate::config::ProgramCounter;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::BufRead;
@@ -12,7 +13,6 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
             Regex::new(r"\[.+\s+TRACE\s+.+BPF Program Instruction Trace").expect("Invalid regex");
     }
 
-    // reuse string in the loop for better performance
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
 
@@ -29,24 +29,27 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
 /// Represents trace instruction (call or another).
 #[derive(Debug)]
 pub struct Instruction {
-    _pc: usize,
+    program_counter: ProgramCounter,
     text: String,
 }
 
 impl Instruction {
     /// Parses the input string and creates corresponding instruction if possible.
-    pub fn parse(s: &str, lc: usize) -> Result<Self> {
+    pub fn parse(s: &str) -> Result<Self> {
         lazy_static! {
             static ref TRACE_INSTRUCTION: Regex =
                 Regex::new(r"\d+\s+\[.+\]\s+(\d+):\s+(.+)").expect("Invalid regex");
         }
 
         if let Some(caps) = TRACE_INSTRUCTION.captures(s) {
-            let pc = caps[1]
-                .parse::<usize>()
-                .map_err(|_| Error::TraceParsing(s.into(), lc))?;
-            let text = caps[2].to_string();
-            return Ok(Instruction { _pc: pc, text });
+            let program_counter = caps[1]
+                .parse::<ProgramCounter>()
+                .expect("Cannot parse program counter");
+            let text = caps[2].trim().to_string();
+            return Ok(Instruction {
+                program_counter,
+                text,
+            });
         }
 
         Err(Error::TraceSkipped)
@@ -55,6 +58,11 @@ impl Instruction {
     /// Returns copy of the textual representation.
     pub fn text(&self) -> String {
         self.text.clone()
+    }
+
+    /// Returns program counter of the instruction.
+    pub fn program_counter(&self) -> ProgramCounter {
+        self.program_counter
     }
 
     /// Checks if the instruction is a call of function.

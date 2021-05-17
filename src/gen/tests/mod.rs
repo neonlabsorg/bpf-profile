@@ -37,7 +37,7 @@ fn generate() {
     assert!(r.is_ok());
     //dbg!(std::str::from_utf8(&output).unwrap());
 
-    assert_eq!(output.len(), 237);
+    assert_eq!(output.len(), 236);
     assert_eq!(output, mock::SIMPLE_CALLGRIND);
 }
 
