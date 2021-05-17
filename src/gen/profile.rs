@@ -45,6 +45,7 @@ impl Profile {
 
         let reader = BufReader::new(fileutil::open(&trace_file)?);
         parse_trace_file(reader, &mut prof)?;
+        dbg!(&prof);
         Ok(prof)
     }
 
@@ -105,6 +106,7 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
+    let mut ix: Instruction;
 
     while bytes_read != 0 {
         if line.is_empty() {
@@ -112,39 +114,40 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
             lc += 1;
         }
 
-        let ix = Instruction::parse(&line);
-        if let Err(Error::TraceSkipped) = &ix {
+        let ixr = Instruction::parse(&line);
+        if let Err(Error::TraceSkipped) = &ixr {
             //warn!("Skip '{}'", &line.trim());
             line.clear();
             continue;
         }
-        let mut ix = ix?;
-
-        prof.increment_cost();
+        ix = ixr?;
 
         if ix.is_exit() {
+            prof.increment_cost();
             prof.pop_call();
             line.clear();
             continue;
         }
 
         if !ix.is_call() {
+            prof.increment_cost();
             line.clear();
             continue;
         }
 
-        // Handle sequence of enclosed calls as well:
+        // Handle sequences of enclosed calls as well:
         // 604: call 0xcb3fc071
         // 588: call 0x8e0001f9
         // 1024: call 0x8bf38212
+        // ...
         while ix.is_call() {
-            let call = Call::from(ix, lc)?;
+            prof.increment_cost();
+            let call = Call::from(&ix, lc)?;
+            prof.push_call(call, ix.program_counter());
             // Read next line — the first instruction of the call
             bytes_read = fileutil::read_line(&mut reader, &mut line)?;
             lc += 1;
             ix = Instruction::parse(&line)?;
-            prof.increment_cost();
-            prof.push_call(call, ix.program_counter());
         }
         // Keep here the last non-call line to process further
     }
@@ -159,6 +162,7 @@ struct Call {
     caller: Address,
     cost: usize,
     callee: Box<Option<Call>>,
+    depth: usize,
 }
 
 impl Call {
@@ -169,11 +173,12 @@ impl Call {
             caller: Address::default(),
             cost: 0,
             callee: Box::new(None),
+            depth: 0,
         }
     }
 
     /// Creates new call object from a trace instruction (which must be a call).
-    fn from(ix: Instruction, lc: usize) -> Result<Self> {
+    fn from(ix: &Instruction, lc: usize) -> Result<Self> {
         let text = ix.text();
         if !ix.is_call() {
             return Err(Error::TraceNotCall(text));
@@ -212,7 +217,13 @@ impl Call {
 
     /// Adds next call to the call stack.
     fn push_call(&mut self, mut call: Call) {
-        tracing::debug!("Call({}).push_call {}", self.address, call.address);
+        tracing::debug!(
+            "Call({}).push_call {} depth={}",
+            self.address,
+            call.address,
+            self.depth
+        );
+        self.depth += 1;
         match *self.callee {
             Some(ref mut callee) => {
                 callee.push_call(call);
@@ -227,8 +238,9 @@ impl Call {
 
     /// Removes current call from the call stack.
     fn pop_call(&mut self) -> Call {
-        tracing::debug!("Call({}).pop_call", self.address);
+        tracing::debug!("Call({}).pop_call depth={}", self.address, self.depth);
         assert!(self.callee.is_some());
+        self.depth -= 1;
         let callee = self.callee.as_mut().as_mut().unwrap();
         if callee.callee.is_some() {
             callee.pop_call()
