@@ -47,7 +47,6 @@ impl Profile {
 
         let reader = BufReader::new(fileutil::open(&trace_file)?);
         parse_trace_file(reader, &mut prof)?;
-        dbg!(&prof);
         Ok(prof)
     }
 
@@ -151,6 +150,13 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
         // Keep here the last non-call line to process further
     }
 
+    if prof.ground.depth > 0 {
+        tracing::warn!("Unbalanced call/exit: {}", &prof.ground.depth);
+        //tracing::warn!(
+        //    "Function 0x{:x} did not return",
+        //    &prof.ground.callee.as_ref().as_ref().unwrap().address
+        //);
+    }
     Ok(())
 }
 
@@ -239,6 +245,9 @@ impl Call {
     fn pop_call(&mut self) -> Call {
         tracing::debug!("Call({}).pop_call depth={}", self.address, self.depth);
         assert!(self.callee.is_some());
+        if self.depth == 0 {
+            panic!("Exit without call");
+        }
         self.depth -= 1;
         let callee = self.callee.as_mut().as_mut().unwrap();
         if callee.callee.is_some() {

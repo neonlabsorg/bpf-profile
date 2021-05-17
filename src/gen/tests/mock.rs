@@ -1,6 +1,9 @@
 //! bpf-profile generator mock module.
 
 pub const SIMPLE_INPUT: &[u8] = b"
+# The input contains 3 functions with addresses 0x100, 0x200, and 0x300.
+# Function 0x100 calls 0x200 once and 0x300 3 times.
+# Function 0x200 calls 0x200 2 times.
 [Z TRACE bpf] BPF Program Instruction Trace:
  1 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 0: ...
  2 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 1: ...
@@ -36,24 +39,24 @@ pub const SIMPLE_CALLGRIND: &[u8] = b"# callgrind format
 version: 1
 creator: bpf-profile
 events: Instructions
-totals: 25
+totals: 28
 fl=trace
 
 fn=function_0
-0 6
+3 6
 cfn=function_1
-calls=1 0
-0 6
+calls=1 20
+3 8
 cfn=function_2
-calls=3 0
-0 8
+calls=3 30
+3 9
 
 fn=function_1
-0 3
+20 4
 cfn=function_2
-calls=2 0
-0 3
+calls=2 30
+20 4
 
 fn=function_2
-0 11
+30 13
 ";

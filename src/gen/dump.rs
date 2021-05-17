@@ -123,7 +123,6 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
         if let Some(caps) = FUNC_HEADER.captures(&line) {
             let name = caps[1].to_string();
             if !name.starts_with("LBB") {
-                println!("name: {}", &name);
                 // Get the very first instruction of the function
                 bytes_read = fileutil::read_line(&mut reader, &mut line)?;
                 lc += 1;
@@ -131,7 +130,6 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
                     let pc = caps[1]
                         .parse::<ProgramCounter>()
                         .expect("Cannot parse program counter");
-                    println!("pc: {}", &pc);
                     if !dump.contains_function_with_first_pc(pc) {
                         dump.update_first_pc_index(&name, pc);
                     }
@@ -144,8 +142,3 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
 
     Ok(())
 }
-
-// Represents a function.
-//struct Function {
-//    name: String,
-//}
