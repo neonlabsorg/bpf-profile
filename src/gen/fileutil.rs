@@ -1,7 +1,7 @@
 //! bpf-profile file utilities module.
 
 use super::{Error, Result};
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, Read, Write};
 use std::path::Path;
 
@@ -13,6 +13,7 @@ pub fn open(filename: &Path) -> Result<impl Read> {
 
 /// Opens a file for writing; rewrites existing.
 pub fn open_w(filename: &Path) -> Result<impl Write> {
+    fs::remove_file(filename)?;
     let file = OpenOptions::new()
         .write(true)
         .create(true)

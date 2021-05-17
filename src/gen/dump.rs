@@ -1,7 +1,7 @@
 //! bpf-profile dump module.
 
 use super::{fileutil, Error, Result};
-use crate::config::{Address, Index, Map, ProgramCounter, Set, GROUND_ZERO};
+use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::{BufRead, BufReader};
@@ -79,7 +79,6 @@ impl Resolver {
 }
 
 const HEADER: &str = "ELF Header";
-const SYMTAB_HEADER: &str = "Symbol table '.symtab'";
 const DISASM_HEADER: &str = "Disassembly of section .text";
 
 /// Parses the dump file building the Resolver instance.
@@ -88,9 +87,9 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
     let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
 
-    // Skip to the symtab
+    // Skip to the disassembly
     let mut was_header = false;
-    let mut was_symtab = false;
+    let mut was_disasm = false;
     while bytes_read != 0 {
         bytes_read = fileutil::read_line(&mut reader, &mut line)?;
         lc += 1;
@@ -98,47 +97,10 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
             was_header = true;
             continue;
         }
-        if line.starts_with(SYMTAB_HEADER) {
+        if line.starts_with(DISASM_HEADER) {
             if !was_header {
                 return Err(Error::DumpFormat);
             }
-            was_symtab = true;
-            break;
-        }
-    }
-    if !was_symtab {
-        return Ok(()); // just useless dump
-    }
-
-    lazy_static! {
-        static ref FUNC: Regex =
-            Regex::new(r"\s+\d+\s+[[:xdigit:]]+\s+\d+\s+FUNC\s+LOCAL\s+HIDDEN\s+\d+\s+(.+)")
-                .expect("Invalid regex");
-    }
-
-    // Read the symtab
-    let mut func_names = Set::new();
-    while bytes_read != 0 {
-        bytes_read = fileutil::read_line(&mut reader, &mut line)?;
-        lc += 1;
-        if line.trim().is_empty() {
-            break;
-        }
-        if let Some(caps) = FUNC.captures(&line) {
-            let name = caps[1].to_string();
-            func_names.insert(name);
-        }
-    }
-    if func_names.is_empty() {
-        return Ok(()); // just useless dump
-    }
-
-    // Skip to the disassembly
-    let mut was_disasm = false;
-    while bytes_read != 0 {
-        bytes_read = fileutil::read_line(&mut reader, &mut line)?;
-        lc += 1;
-        if line.starts_with(DISASM_HEADER) {
             was_disasm = true;
             break;
         }
@@ -160,7 +122,8 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
         lc += 1;
         if let Some(caps) = FUNC_HEADER.captures(&line) {
             let name = caps[1].to_string();
-            if func_names.contains(&name) {
+            if !name.starts_with("LBB") {
+                println!("name: {}", &name);
                 // Get the very first instruction of the function
                 bytes_read = fileutil::read_line(&mut reader, &mut line)?;
                 lc += 1;
@@ -168,6 +131,7 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
                     let pc = caps[1]
                         .parse::<ProgramCounter>()
                         .expect("Cannot parse program counter");
+                    println!("pc: {}", &pc);
                     if !dump.contains_function_with_first_pc(pc) {
                         dump.update_first_pc_index(&name, pc);
                     }

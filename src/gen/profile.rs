@@ -9,6 +9,7 @@ type Functions = Map<Address, Function>;
 #[derive(Debug)]
 pub struct Profile {
     file: String,
+    total_cost: usize,
     ground: Call,
     functions: Functions,
     dump: Resolver,
@@ -25,6 +26,7 @@ impl Profile {
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
             file,
+            total_cost: 0,
             ground: Call::new(GROUND_ZERO),
             functions,
             dump,
@@ -56,11 +58,7 @@ impl Profile {
         writeln!(output, "version: 1")?;
         writeln!(output, "creator: bpf-profile")?;
         writeln!(output, "events: Instructions")?;
-        writeln!(
-            output,
-            "totals: {}",
-            self.functions[&GROUND_ZERO].total_cost()
-        )?;
+        writeln!(output, "totals: {}", self.total_cost)?;
         writeln!(output, "fl={}", self.file)?;
         write_callgrind_functions(&self.functions, output)?;
         Ok(())
@@ -69,6 +67,7 @@ impl Profile {
     /// Increments the total cost and the cost of current call.
     fn increment_cost(&mut self) {
         tracing::debug!("Profile.increment_cost");
+        self.total_cost += 1;
         self.ground.increment_cost(&mut self.functions);
     }
 
@@ -143,11 +142,11 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
         while ix.is_call() {
             prof.increment_cost();
             let call = Call::from(&ix, lc)?;
-            prof.push_call(call, ix.program_counter());
             // Read next line — the first instruction of the call
             bytes_read = fileutil::read_line(&mut reader, &mut line)?;
             lc += 1;
             ix = Instruction::parse(&line)?;
+            prof.push_call(call, ix.program_counter());
         }
         // Keep here the last non-call line to process further
     }
@@ -302,11 +301,6 @@ impl Function {
     fn add_call(&mut self, call: Call) {
         tracing::debug!("Function({}).add_call {}", self.address, call.address);
         self.calls.push(call);
-    }
-
-    /// Returns inclusive cost of the function and of it's calls.
-    fn total_cost(&self) -> usize {
-        self.calls.iter().fold(self.cost, |sum, c| sum + c.cost)
     }
 }
 
