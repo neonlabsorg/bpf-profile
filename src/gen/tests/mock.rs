@@ -1,6 +1,6 @@
 //! bpf-profile generator mock module.
 
-pub const GOOD_INPUT: &[u8] = b"[Z TRACE bpf] BPF Program Instruction Trace:
+pub const SIMPLE_INPUT: &[u8] = b"[Z TRACE bpf] BPF Program Instruction Trace:
 0 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 0: xxx
 0 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 0: xxx
 0 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 0: call 1
@@ -28,7 +28,7 @@ pub const GOOD_INPUT: &[u8] = b"[Z TRACE bpf] BPF Program Instruction Trace:
 0 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 0: xxx
 ";
 
-pub const CALLGRIND: &[u8] = b"# callgrind format
+pub const SIMPLE_CALLGRIND: &[u8] = b"# callgrind format
 version: 1
 creator: bpf-profile
 events: Instructions

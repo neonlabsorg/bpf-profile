@@ -22,7 +22,7 @@ impl Profile {
     /// Creates the initial instance of profile.
     pub fn new(file: String, dump: Resolver) -> Result<Self> {
         let mut functions = Map::new();
-        functions.insert(GROUND_ZERO, Function::new(GROUND_ZERO, &dump));
+        functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
             file,
             ground: Call::new(GROUND_ZERO),
@@ -109,15 +109,12 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
 
     while bytes_read != 0 {
         lc += 1;
-        line.clear();
-        bytes_read = reader
-            .read_line(&mut line)
-            .map_err(|e| Error::ReadLine(e, line.clone()))?;
+        bytes_read = fileutil::read_line(&mut reader, &mut line)?;
 
         let ix = Instruction::parse(&line, lc);
         tracing::debug!("");
         tracing::debug!("ix {:?}", &ix);
-        if let Err(Error::Skipped) = &ix {
+        if let Err(Error::TraceSkipped) = &ix {
             //warn!("Skip '{}'", &line.trim());
             continue;
         }
@@ -159,11 +156,15 @@ impl Call {
     fn from(ix: Instruction, lc: usize) -> Result<Self> {
         let text = ix.text();
         if !ix.is_call() {
-            return Err(Error::NotCall(text));
+            return Err(Error::TraceNotCall(text));
         }
         let mut pair = text.split_whitespace(); // => "call something"
-        let _ = pair.next().ok_or_else(|| Error::Parsing(ix.text(), lc))?;
-        let address = pair.next().ok_or_else(|| Error::Parsing(ix.text(), lc))?;
+        let _ = pair
+            .next()
+            .ok_or_else(|| Error::TraceParsing(ix.text(), lc))?;
+        let address = pair
+            .next()
+            .ok_or_else(|| Error::TraceParsing(ix.text(), lc))?;
         Ok(Call::new(hex_str_to_address(address)))
     }
 
@@ -235,8 +236,19 @@ struct Function {
 }
 
 impl Function {
+    /// Creates initial function object which stores total cost of entire program.
+    fn ground_zero() -> Self {
+        Function {
+            address: GROUND_ZERO,
+            name: "GROUND_ZERO".into(),
+            cost: 0,
+            calls: Vec::new(),
+        }
+    }
+
     /// Creates new function object.
     fn new(address: Address, dump: &Resolver) -> Self {
+        assert_ne!(address, GROUND_ZERO);
         Function {
             address,
             name: dump.resolve(address),

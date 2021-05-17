@@ -21,18 +21,21 @@ pub enum Error {
     #[error("Cannot read line '{1}': {0}")]
     ReadLine(#[source] std::io::Error, String),
 
-    #[error("Unsupported format of trace file")]
-    TraceFormat,
     #[error("Unsupported format of dump file")]
     DumpFormat,
     #[error("Dump file without disassembly")]
     DumpFormatNoDisasm,
+    #[error("Cannot parse instruction '{0}' of a function at line '{1}'")]
+    DumpParsing(String, usize),
+
+    #[error("Unsupported format of trace file")]
+    TraceFormat,
     #[error("Skipped input")]
-    Skipped,
-    #[error("Cannot parse trace '{0}' at line {1}")]
-    Parsing(String, usize),
+    TraceSkipped,
     #[error("Instruction is not a call: '{0}'")]
-    NotCall(String),
+    TraceNotCall(String),
+    #[error("Cannot parse trace '{0}' at line {1}")]
+    TraceParsing(String, usize),
 
     #[error("Input/output error")]
     Io(#[from] std::io::Error),
@@ -42,7 +45,7 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 use profile::Profile;
-use std::io::BufWriter;
+use std::io::{BufReader, BufWriter};
 
 /// Runs the conversion from trace to a profiler output.
 pub fn run(
@@ -51,7 +54,7 @@ pub fn run(
     output_file: Option<PathBuf>,
     _: String, // always 'callgrind' currently
 ) -> Result<()> {
-    if !trace::contains_standard_header(&trace_file)? {
+    if !trace::contains_standard_header(BufReader::new(fileutil::open(&trace_file)?))? {
         return Err(Error::TraceFormat);
     }
 

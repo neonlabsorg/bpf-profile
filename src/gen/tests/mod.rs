@@ -8,15 +8,15 @@ use std::io::Cursor;
 #[test]
 fn header_missing() {
     let reader = Cursor::new(b"Lorem ipsum dolor sit amet");
-    let r = trace::contains_standard_header_(reader);
+    let r = trace::contains_standard_header(reader);
     assert!(r.is_ok());
     assert!(!r.unwrap());
 }
 
 #[test]
 fn header_ok() {
-    let reader = Cursor::new(mock::GOOD_INPUT);
-    let r = trace::contains_standard_header_(reader);
+    let reader = Cursor::new(mock::SIMPLE_INPUT);
+    let r = trace::contains_standard_header(reader);
     assert!(r.is_ok());
     assert!(r.unwrap());
 }
@@ -24,7 +24,7 @@ fn header_ok() {
 #[test]
 fn generate() {
     let dump = dump::Resolver::default();
-    let reader = Cursor::new(mock::GOOD_INPUT);
+    let reader = Cursor::new(mock::SIMPLE_INPUT);
     let prof = profile::Profile::new("trace".into(), dump);
     assert!(prof.is_ok());
 
@@ -35,9 +35,10 @@ fn generate() {
     let mut output = Vec::<u8>::new();
     let r = prof.write_callgrind(&mut output);
     assert!(r.is_ok());
-    assert_eq!(output.len(), 237);
     //dbg!(std::str::from_utf8(&output).unwrap());
-    assert_eq!(output, mock::CALLGRIND);
+
+    assert_eq!(output.len(), 237);
+    assert_eq!(output, mock::SIMPLE_CALLGRIND);
 }
 
 #[test]
