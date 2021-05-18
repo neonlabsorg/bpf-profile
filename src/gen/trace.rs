@@ -29,7 +29,7 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
 /// Represents trace instruction (call or another).
 #[derive(Debug)]
 pub struct Instruction {
-    program_counter: ProgramCounter,
+    pc: ProgramCounter,
     text: String,
 }
 
@@ -42,14 +42,11 @@ impl Instruction {
         }
 
         if let Some(caps) = TRACE_INSTRUCTION.captures(s) {
-            let program_counter = caps[1]
+            let pc = caps[1]
                 .parse::<ProgramCounter>()
                 .expect("Cannot parse program counter");
             let text = caps[2].trim().to_string();
-            return Ok(Instruction {
-                program_counter,
-                text,
-            });
+            return Ok(Instruction { pc, text });
         }
 
         Err(Error::TraceSkipped)
@@ -61,8 +58,8 @@ impl Instruction {
     }
 
     /// Returns program counter of the instruction.
-    pub fn program_counter(&self) -> ProgramCounter {
-        self.program_counter
+    pub fn pc(&self) -> ProgramCounter {
+        self.pc
     }
 
     /// Checks if the instruction is a call of function.

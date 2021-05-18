@@ -145,7 +145,7 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
             bytes_read = fileutil::read_line(&mut reader, &mut line)?;
             lc += 1;
             ix = Instruction::parse(&line)?;
-            prof.push_call(call, ix.program_counter());
+            prof.push_call(call, ix.pc());
         }
         // Keep here the last non-call line to process further
     }
