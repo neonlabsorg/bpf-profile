@@ -133,7 +133,7 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
 
         let ixr = Instruction::parse(&line);
         if let Err(Error::TraceSkipped) = &ixr {
-            //warn!("Skip '{}'", &line.trim());
+            /* warn!("Skip '{}'", &line.trim()); */
             line.clear();
             continue;
         }
@@ -171,10 +171,9 @@ pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<
 
     if prof.ground.depth > 0 {
         tracing::warn!("Unbalanced call/exit: {}", &prof.ground.depth);
-        //tracing::warn!(
-        //    "Function 0x{:x} did not return",
-        //    &prof.ground.callee.as_ref().as_ref().unwrap().address
-        //);
+        for _ in 0..prof.ground.depth {
+            prof.pop_call();
+        }
     }
     Ok(())
 }
@@ -263,16 +262,15 @@ impl Call {
     /// Removes current call from the call stack.
     fn pop_call(&mut self) -> Call {
         tracing::debug!("Call({}).pop_call depth={}", self.address, self.depth);
-        assert!(self.callee.is_some());
         if self.depth == 0 {
             panic!("Exit without call");
         }
         self.depth -= 1;
-        let callee = self.callee.as_mut().as_mut().unwrap();
+        let callee = self.callee.as_mut().as_mut().expect("Missing callee");
         if callee.callee.is_some() {
             callee.pop_call()
         } else {
-            let call = self.callee.take().unwrap();
+            let call = self.callee.take().expect("Missing callee");
             self.cost += call.cost;
             call
         }
@@ -392,15 +390,10 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         writeln!(output, "{} {}", f.pc, f.cost)?;
         statistics.clear();
         for c in &f.calls {
-            #[allow(clippy::map_entry)]
-            if !statistics.contains_key(&c.address) {
-                statistics.insert(c.address, (1, c.cost));
-            } else {
-                let mut stat = statistics[&c.address];
-                stat.0 += 1;
-                stat.1 += c.cost;
-                statistics.insert(c.address, stat);
-            }
+            let stat = statistics.entry(&c.address).or_insert((0_usize, 0_usize));
+            let number_of_calls = stat.0 + 1;
+            let inclusive_cost = stat.1 + c.cost;
+            statistics.insert(&c.address, (number_of_calls, inclusive_cost));
         }
         for (a, s) in &statistics {
             writeln!(output, "cfn={}", functions[a].name)?;
