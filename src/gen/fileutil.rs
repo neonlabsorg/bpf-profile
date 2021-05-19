@@ -13,7 +13,9 @@ pub fn open(filename: &Path) -> Result<impl Read> {
 
 /// Opens a file for writing; rewrites existing.
 pub fn open_w(filename: &Path) -> Result<impl Write> {
-    fs::remove_file(filename)?;
+    if filename.exists() {
+        fs::remove_file(filename)?;
+    }
     let file = OpenOptions::new()
         .write(true)
         .create(true)

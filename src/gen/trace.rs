@@ -341,7 +341,7 @@ struct Instruction {
 
 impl Instruction {
     /// Parses the input string and creates corresponding instruction if possible.
-    pub fn parse(s: &str) -> Result<Self> {
+    fn parse(s: &str) -> Result<Self> {
         lazy_static! {
             static ref TRACE_INSTRUCTION: Regex =
                 Regex::new(r"\d+\s+\[.+\]\s+(\d+):\s+(.+)").expect("Invalid regex");
@@ -359,22 +359,22 @@ impl Instruction {
     }
 
     /// Returns copy of the textual representation.
-    pub fn text(&self) -> String {
+    fn text(&self) -> String {
         self.text.clone()
     }
 
     /// Returns program counter of the instruction.
-    pub fn pc(&self) -> ProgramCounter {
+    fn pc(&self) -> ProgramCounter {
         self.pc
     }
 
     /// Checks if the instruction is a call of function.
-    pub fn is_call(&self) -> bool {
+    fn is_call(&self) -> bool {
         self.text.starts_with("call")
     }
 
     /// Checks if the instruction is exit of function.
-    pub fn is_exit(&self) -> bool {
+    fn is_exit(&self) -> bool {
         self.text == "exit"
     }
 }
