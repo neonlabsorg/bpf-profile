@@ -2,7 +2,6 @@
 
 mod dump;
 mod fileutil;
-mod profile;
 mod trace;
 
 #[cfg(test)]
@@ -44,8 +43,8 @@ pub enum Error {
 /// Represents results.
 pub type Result<T> = std::result::Result<T, Error>;
 
-use profile::Profile;
 use std::io::{BufReader, BufWriter};
+use trace::Profile;
 
 /// Runs the conversion from trace to a profiler output.
 pub fn run(

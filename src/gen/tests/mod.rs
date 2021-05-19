@@ -2,7 +2,7 @@
 
 mod mock;
 
-use crate::gen::{dump, profile, trace};
+use crate::gen::{dump, trace};
 use std::io::Cursor;
 
 #[test]
@@ -25,11 +25,11 @@ fn header_ok() {
 fn generate() {
     let dump = dump::Resolver::default();
     let reader = Cursor::new(mock::SIMPLE_INPUT);
-    let prof = profile::Profile::new("trace".into(), dump);
+    let prof = trace::Profile::new("trace".into(), dump);
     assert!(prof.is_ok());
 
     let mut prof = prof.unwrap();
-    let r = profile::parse_trace_file(reader, &mut prof);
+    let r = trace::parse_trace_file(reader, &mut prof);
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
