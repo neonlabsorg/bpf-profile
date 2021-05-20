@@ -5,13 +5,13 @@ use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Reads the dump file (if any) and returns a dump representation.
-pub fn read(filename: Option<PathBuf>) -> Result<Resolver> {
+pub fn read(filename: Option<&Path>) -> Result<Resolver> {
     match filename {
         None => Ok(Resolver::default()),
-        Some(filename) => Resolver::read(&filename),
+        Some(filename) => Resolver::read(filename),
     }
 }
 

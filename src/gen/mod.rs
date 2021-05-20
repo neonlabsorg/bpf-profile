@@ -7,6 +7,7 @@ mod trace;
 #[cfg(test)]
 mod tests;
 
+use std::io;
 use std::path::PathBuf;
 
 /// Represents errors of the converter.
@@ -16,11 +17,11 @@ pub enum Error {
     Filename(PathBuf),
 
     #[error("Cannot open file '{1}': {0}")]
-    OpenFile(#[source] std::io::Error, PathBuf),
+    OpenFile(#[source] io::Error, PathBuf),
     #[error("Cannot read line '{1}': {0}")]
-    ReadLine(#[source] std::io::Error, String),
+    ReadLine(#[source] io::Error, String),
     #[error("Input/output error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[from] io::Error),
 
     #[error("Unsupported format of dump file")]
     DumpFormat,
@@ -43,25 +44,26 @@ pub enum Error {
 pub type Result<T> = std::result::Result<T, Error>;
 
 use std::io::{BufReader, BufWriter};
+use std::path::Path;
 use trace::Profile;
 
 /// Runs the conversion from trace to a profiler output.
 pub fn run(
-    trace_file: PathBuf,
-    dump_file: Option<PathBuf>,
-    output_file: Option<PathBuf>,
-    _: String, // always 'callgrind' currently
+    trace_path: &Path,
+    dump_path: Option<&Path>,
+    output_path: Option<&Path>,
+    _: &str, // always 'callgrind' currently
 ) -> Result<()> {
-    if !trace::contains_standard_header(BufReader::new(fileutil::open(&trace_file)?))? {
+    if !trace::contains_standard_header(BufReader::new(fileutil::open(&trace_path)?))? {
         return Err(Error::TraceFormat);
     }
 
-    let profile = Profile::create(trace_file, dump_file)?;
+    let profile = Profile::create(trace_path, dump_path)?;
 
-    match output_file {
-        None => profile.write_callgrind(std::io::stdout()),
-        Some(output_file) => {
-            let output = fileutil::open_w(&output_file)?;
+    match output_path {
+        None => profile.write_callgrind(io::stdout()),
+        Some(output_path) => {
+            let output = fileutil::open_w(&output_path)?;
             profile.write_callgrind(BufWriter::new(output))
         }
     }

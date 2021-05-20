@@ -6,7 +6,7 @@ use crate::config::{Address, Map, ProgramCounter, GROUND_ZERO};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::Path;
 
 type Functions = Map<Address, Function>;
 
@@ -33,7 +33,7 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
 /// Represents the profile.
 #[derive(Debug)]
 pub struct Profile {
-    file: String,
+    source_filename: String,
     total_cost: usize,
     ground: Call,
     functions: Functions,
@@ -42,11 +42,11 @@ pub struct Profile {
 
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(file: String, dump: Resolver) -> Result<Self> {
+    pub fn new(filename: String, dump: Resolver) -> Result<Self> {
         let mut functions = Map::new();
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
-            file,
+            source_filename: filename,
             total_cost: 0,
             ground: Call::new(GROUND_ZERO),
             functions,
@@ -55,21 +55,23 @@ impl Profile {
     }
 
     /// Reads the trace and creates the profile data.
-    pub fn create(trace_file: PathBuf, dump_file: Option<PathBuf>) -> Result<Self> {
-        tracing::debug!("Profile.create {:?}", &trace_file);
+    pub fn create(trace_path: &Path, dump_path: Option<&Path>) -> Result<Self> {
+        tracing::debug!("Profile.create {:?}", &trace_path);
 
-        let dump = dump::read(dump_file)?;
+        let source_path = match dump_path {
+            None => trace_path,
+            Some(dump_path) => dump_path,
+        };
+        let source_filename = source_path
+            .to_str()
+            .ok_or_else(|| Error::Filename(source_path.into()))?
+            .to_string();
 
-        let mut prof = Profile::new(
-            trace_file
-                .to_str()
-                .ok_or_else(|| Error::Filename(trace_file.clone()))?
-                .to_string(),
-            dump,
-        )?;
-
-        let reader = BufReader::new(fileutil::open(&trace_file)?);
+        let dump = dump::read(dump_path)?;
+        let reader = BufReader::new(fileutil::open(&trace_path)?);
+        let mut prof = Profile::new(source_filename, dump)?;
         parse_trace_file(reader, &mut prof)?;
+
         Ok(prof)
     }
 
@@ -81,7 +83,7 @@ impl Profile {
         writeln!(output, "creator: bpf-profile")?;
         writeln!(output, "events: Instructions")?;
         writeln!(output, "totals: {}", self.total_cost)?;
-        writeln!(output, "fl={}", self.file)?;
+        writeln!(output, "fl={}", self.source_filename)?;
         write_callgrind_functions(&self.functions, output)?;
         Ok(())
     }

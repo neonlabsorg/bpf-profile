@@ -11,7 +11,7 @@
 //!     `llvm-objdump -print-imm-hex --source --disassemble <ELF file path>`
 //!
 //! You can create the trace file by running the Solana cluster under `RUST_LOG`:
-//!     `export RUST_LOG=solana_rbpf=trace`
+//!     `export RUST_LOG=solana_bpf_loader_program=trace`
 
 #![forbid(unsafe_code)]
 #![deny(warnings)]
@@ -45,7 +45,12 @@ fn execute(app: cli::Application) -> gen::Result<()> {
             output,
             format,
         } => {
-            gen::run(trace, dump, output, format)?;
+            gen::run(
+                &trace,
+                dump.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
+                output.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
+                &format,
+            )?;
         }
     }
 
