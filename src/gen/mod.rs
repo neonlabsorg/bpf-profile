@@ -19,7 +19,7 @@ pub enum Error {
     OpenFile(#[source] std::io::Error, PathBuf),
     #[error("Cannot read line '{1}': {0}")]
     ReadLine(#[source] std::io::Error, String),
-    #[error("Input/output error")]
+    #[error("Input/output error: {0}")]
     Io(#[from] std::io::Error),
 
     #[error("Unsupported format of dump file")]
@@ -35,7 +35,7 @@ pub enum Error {
     TraceSkipped,
     #[error("Instruction is not a call: '{0}'")]
     TraceNotCall(String),
-    #[error("Cannot parse trace '{0}' at line {1}")]
+    #[error("Cannot parse trace instruction '{0}' at line {1}")]
     TraceParsing(String, usize),
 }
 
@@ -56,8 +56,7 @@ pub fn run(
         return Err(Error::TraceFormat);
     }
 
-    let dump = dump::read(dump_file)?;
-    let profile = Profile::create(trace_file, dump)?;
+    let profile = Profile::create(trace_file, dump_file)?;
 
     match output_file {
         None => profile.write_callgrind(std::io::stdout()),

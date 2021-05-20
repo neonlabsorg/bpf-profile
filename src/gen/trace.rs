@@ -1,6 +1,6 @@
 //! bpf-profile implementation of the profile struct.
 
-use super::dump::Resolver;
+use super::dump::{self, Resolver};
 use super::{fileutil, Error, Result};
 use crate::config::{Address, Map, ProgramCounter, GROUND_ZERO};
 use lazy_static::lazy_static;
@@ -55,8 +55,10 @@ impl Profile {
     }
 
     /// Reads the trace and creates the profile data.
-    pub fn create(trace_file: PathBuf, dump: Resolver) -> Result<Self> {
+    pub fn create(trace_file: PathBuf, dump_file: Option<PathBuf>) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", &trace_file);
+
+        let dump = dump::read(dump_file)?;
 
         let mut prof = Profile::new(
             trace_file
