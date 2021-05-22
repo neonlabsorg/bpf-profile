@@ -50,7 +50,7 @@ impl Profile {
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
             total_cost: 0,
-            ground: Call::new(GROUND_ZERO),
+            ground: Call::new(GROUND_ZERO, 0),
             functions,
             dump,
             asm: asm::Source::new(),
@@ -136,11 +136,57 @@ impl Profile {
     }
 }
 
+/// Represents a function which will be dumped into a profile.
+#[derive(Debug)]
+struct Function {
+    address: Address,
+    name: String,
+    costs: Costs,
+    calls: Vec<Call>,
+}
+
+impl Function {
+    /// Creates initial function object which stores total cost of entire program.
+    fn ground_zero() -> Self {
+        Function {
+            address: GROUND_ZERO,
+            name: "GROUND_ZERO".into(),
+            costs: BTreeMap::new(),
+            calls: Vec::new(),
+        }
+    }
+
+    /// Creates new function object.
+    fn new(address: Address, first_pc: ProgramCounter, dump: &mut Resolver) -> Self {
+        assert_ne!(address, GROUND_ZERO);
+        Function {
+            address,
+            name: dump.resolve(address, first_pc),
+            costs: BTreeMap::new(),
+            calls: Vec::new(),
+        }
+    }
+
+    /// Increments the immediate cost of the function.
+    fn increment_cost(&mut self, pc: ProgramCounter) {
+        tracing::debug!("Function({}).increment_cost", self.address);
+        let c = *self.costs.entry(pc).or_insert(0);
+        self.costs.insert(pc, c + 1);
+    }
+
+    /// Adds finished enclosed call for this function.
+    fn add_call(&mut self, call: Call) {
+        tracing::debug!("Function({}).add_call {}", self.address, call.address);
+        self.calls.push(call);
+    }
+}
+
 /// Represents a function call.
 #[derive(Clone, Debug)]
 struct Call {
     address: Address,
     caller: Address,
+    caller_pc: ProgramCounter,
     cost: Cost,
     callee: Box<Option<Call>>,
     depth: usize,
@@ -148,10 +194,11 @@ struct Call {
 
 impl Call {
     /// Creates new call object.
-    fn new(address: Address) -> Self {
+    fn new(address: Address, caller_pc: ProgramCounter) -> Self {
         Call {
             address,
             caller: Address::default(),
+            caller_pc,
             cost: 0,
             callee: Box::new(None),
             depth: 0,
@@ -171,7 +218,7 @@ impl Call {
         let address = pair
             .next()
             .ok_or_else(|| Error::TraceParsing(ix.text(), lc))?;
-        Ok(Call::new(hex_str_to_address(address)))
+        Ok(Call::new(hex_str_to_address(address), ix.pc()))
     }
 
     /// Checks if the call is the root ("ground zero").
@@ -232,54 +279,6 @@ impl Call {
             self.cost += call.cost;
             call
         }
-    }
-}
-
-/// Represents a function which will be dumped into a profile.
-#[derive(Debug)]
-struct Function {
-    address: Address,
-    name: String,
-    entry: ProgramCounter,
-    costs: Costs,
-    calls: Vec<Call>,
-}
-
-impl Function {
-    /// Creates initial function object which stores total cost of entire program.
-    fn ground_zero() -> Self {
-        Function {
-            address: GROUND_ZERO,
-            name: "GROUND_ZERO".into(),
-            entry: 0,
-            costs: BTreeMap::new(),
-            calls: Vec::new(),
-        }
-    }
-
-    /// Creates new function object.
-    fn new(address: Address, first_pc: ProgramCounter, dump: &mut Resolver) -> Self {
-        assert_ne!(address, GROUND_ZERO);
-        Function {
-            address,
-            name: dump.resolve(address, first_pc),
-            entry: first_pc,
-            costs: BTreeMap::new(),
-            calls: Vec::new(),
-        }
-    }
-
-    /// Increments the immediate cost of the function.
-    fn increment_cost(&mut self, pc: ProgramCounter) {
-        tracing::debug!("Function({}).increment_cost", self.address);
-        let c = *self.costs.entry(pc).or_insert(0);
-        self.costs.insert(pc, c + 1);
-    }
-
-    /// Adds finished enclosed call for this function.
-    fn add_call(&mut self, call: Call) {
-        tracing::debug!("Function({}).add_call {}", self.address, call.address);
-        self.calls.push(call);
     }
 }
 
@@ -409,15 +408,16 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
 
         statistics.clear();
         for c in &f.calls {
-            let stat = statistics.entry(&c.address).or_insert((0_usize, 0_usize));
+            let key = (c.caller_pc, c.address);
+            let stat = statistics.entry(key).or_insert((0_usize, 0_usize));
             let number_of_calls = stat.0 + 1;
             let inclusive_cost = stat.1 + c.cost;
-            statistics.insert(&c.address, (number_of_calls, inclusive_cost));
+            statistics.insert(key, (number_of_calls, inclusive_cost));
         }
-        for (a, s) in &statistics {
-            writeln!(output, "cfn={}", functions[a].name)?;
-            writeln!(output, "calls={} 0x{:x}", s.0, a)?;
-            writeln!(output, "{} {}", f.entry, s.1)?;
+        for ((pc, address), (number_of_calls, inclusive_cost)) in &statistics {
+            writeln!(output, "cfn={}", functions[address].name)?;
+            writeln!(output, "calls={} 0x{:x}", number_of_calls, address)?;
+            writeln!(output, "{} {}", pc, inclusive_cost)?;
         }
     }
 

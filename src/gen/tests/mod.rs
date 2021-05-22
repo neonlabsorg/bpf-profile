@@ -4,7 +4,6 @@ mod mock;
 
 use crate::gen::{dump, trace};
 use std::io::Cursor;
-use std::path::Path;
 
 #[test]
 fn header_missing() {
@@ -34,11 +33,14 @@ fn generate() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, Path::new("trace.asm"));
+    let r = prof.write_callgrind(&mut output, "trace.asm");
     assert!(r.is_ok());
-    //dbg!(std::str::from_utf8(&output).unwrap());
 
-    assert_eq!(output.len(), 249);
+    //==== do not delete ====================================
+    //println!("{}", std::str::from_utf8(&output).unwrap());
+    //=======================================================
+
+    assert_eq!(output.len(), 395);
     assert_eq!(output, mock::SIMPLE_CALLGRIND);
 }
 

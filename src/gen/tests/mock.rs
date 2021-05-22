@@ -5,8 +5,8 @@ pub const SIMPLE_INPUT: &[u8] = b"
 # Function 0x100 calls 0x200 once and 0x300 3 times.
 # Function 0x200 calls 0x200 2 times.
 [Z TRACE bpf] BPF Program Instruction Trace:
- 1 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 0: ...
- 2 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 1: ...
+ 1 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 0: aaa
+ 2 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 1: bbb
  3 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 2: call 0x100
  4 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 3: xxx
  5 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 4: call 0x200
@@ -23,40 +23,55 @@ pub const SIMPLE_INPUT: &[u8] = b"
 16 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 31: exit
 17 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 6: call 0x300
 18 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 30: zzz
-19 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 31: zzz
-20 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 32: exit
-21 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 7: call 0x300
-22 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 30: zzz
-23 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 31: zzz
-24 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 32: zzz
-25 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 33: exit
-26 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 8: exit
-27 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 9: ...
-28 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 10: ...
+19 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 31: exit
+20 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 7: call 0x300
+21 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 30: zzz
+22 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 31: exit
+23 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 8: exit
+24 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 9: ccc
+25 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 10: ddd
 ";
 
 pub const SIMPLE_CALLGRIND: &[u8] = b"# callgrind format
 version: 1
 creator: bpf-profile
 events: Instructions
-totals: 28
-fl=\"trace.asm\"
+totals: 25
+fl=trace.asm
 
 fn=function_0
-3 6
+3 1
+4 1
+5 1
+6 1
+7 1
+8 1
 cfn=function_1
-calls=1 20
-3 8
+calls=1 0x200
+4 8
 cfn=function_2
-calls=3 30
-3 9
+calls=1 0x300
+5 2
+cfn=function_2
+calls=1 0x300
+6 2
+cfn=function_2
+calls=1 0x300
+7 2
 
 fn=function_1
-20 4
+20 1
+21 1
+22 1
+23 1
 cfn=function_2
-calls=2 30
-20 4
+calls=1 0x300
+21 2
+cfn=function_2
+calls=1 0x300
+22 2
 
 fn=function_2
-30 13
+30 5
+31 5
 ";
