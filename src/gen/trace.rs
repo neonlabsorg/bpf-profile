@@ -100,7 +100,7 @@ impl Profile {
 
     /// Adds instruction to the generated assembly listing.
     fn keep_asm(&mut self, ix: &Instruction) {
-        self.asm.add_instruction(ix.pc(), &ix.text());
+        self.asm.add_instruction(ix);
     }
 
     /// Increments the total cost and the cost of current call.

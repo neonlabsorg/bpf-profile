@@ -3,7 +3,7 @@
 use crate::config::ProgramCounter;
 
 /// Represents BPF instruction (call or another).
-#[derive(Debug)]
+#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
 pub struct Instruction {
     pc: ProgramCounter,
     text: String,
@@ -32,14 +32,19 @@ impl Instruction {
         Err(Error::TraceSkipped)
     }
 
-    /// Returns copy of the textual representation.
-    pub fn text(&self) -> String {
-        self.text.clone()
+    /// Returns true if default instruction.
+    pub fn is_empty(&self) -> bool {
+        self.pc == 0 && self.text.is_empty()
     }
 
     /// Returns program counter of the instruction.
     pub fn pc(&self) -> ProgramCounter {
         self.pc
+    }
+
+    /// Returns copy of the textual representation.
+    pub fn text(&self) -> String {
+        self.text.clone()
     }
 
     /// Checks if the instruction is a call of function.
@@ -53,10 +58,22 @@ impl Instruction {
     }
 }
 
+use std::fmt;
+
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.is_empty() {
+            write!(f, "")
+        } else {
+            write!(f, "{}:\t\t{}", self.pc + 1, &self.text)
+        }
+    }
+}
+
 /// Represents generated assembly file.
 #[derive(Debug)]
 pub struct Source {
-    lines: Vec<String>,
+    ixs: Vec<Instruction>,
 }
 
 use std::io::Write;
@@ -64,29 +81,34 @@ use std::io::Write;
 impl Source {
     /// Creates new instance of Source.
     pub fn new() -> Self {
-        Source { lines: Vec::new() }
+        Source { ixs: Vec::new() }
     }
 
     /// Adds new instruction to the listing.
-    pub fn add_instruction(&mut self, index: usize, text: &str) {
-        if index >= self.lines.len() {
-            self.lines.resize(index + 1, String::default());
+    pub fn add_instruction(&mut self, ix: &Instruction) {
+        let index = ix.pc();
+        if index >= self.ixs.len() {
+            self.ixs.resize(index + 1, Instruction::default());
         }
-        let generated = format!("{}:\t\t {}", index + 1, text);
-        if self.lines[index].is_empty() {
-            self.lines[index] = generated;
-        } else if !self.lines[index].starts_with(&generated) {
+        if self.ixs[index].is_empty() {
+            self.ixs[index] = ix.clone();
+        } else if self.ixs[index] != *ix {
             panic!(
                 "Inconsistent input: expected '{}', got '{}'",
-                &self.lines[index], &generated
+                &self.ixs[index], &ix
             );
         }
     }
 
     /// Writes all lines of the listing to a file.
     pub fn write(&self, mut output: impl Write) -> Result<()> {
-        for line in &self.lines {
-            writeln!(output, "{}", line)?;
+        for i in 0..self.ixs.len() {
+            let ix = &self.ixs[i];
+            if i == 0 && ix.is_empty() {
+                writeln!(output, "Generated BPF assembly code for QCacheGrind")?;
+            } else {
+                writeln!(output, "{}", ix)?;
+            }
         }
         output.flush()?;
         Ok(())
