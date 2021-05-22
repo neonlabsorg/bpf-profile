@@ -1,14 +1,15 @@
 //! bpf-profile implementation of the profile struct.
 
-use super::dump::{self, Resolver};
-use super::{fileutil, Error, Result};
-use crate::config::{Address, Map, ProgramCounter, GROUND_ZERO};
+use super::{asm, fileutil, Error, Result};
+use crate::config::{Address, Cost, Map, ProgramCounter, GROUND_ZERO};
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 
 type Functions = Map<Address, Function>;
+type Costs = BTreeMap<ProgramCounter, Cost>; // sort by pc
 
 /// Checks the trace file contains expected header line.
 pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
@@ -30,69 +31,82 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
     Ok(false)
 }
 
+use super::dump::{self, Resolver};
+
 /// Represents the profile.
 #[derive(Debug)]
 pub struct Profile {
-    source_filename: String,
-    total_cost: usize,
+    total_cost: Cost,
     ground: Call,
     functions: Functions,
     dump: Resolver,
+    asm: asm::Source,
 }
 
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(filename: String, dump: Resolver) -> Result<Self> {
+    pub fn new(dump: Resolver) -> Result<Self> {
         let mut functions = Map::new();
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
-            source_filename: filename,
             total_cost: 0,
             ground: Call::new(GROUND_ZERO),
             functions,
             dump,
+            asm: asm::Source::new(),
         })
     }
 
     /// Reads the trace and creates the profile data.
     pub fn create(trace_path: &Path, dump_path: Option<&Path>) -> Result<Self> {
-        tracing::debug!("Profile.create {:?}", &trace_path);
+        tracing::debug!("Profile.create {:?}", trace_path);
 
-        let source_path = match dump_path {
+        /*let source_path = match dump_path {
             None => trace_path,
             Some(dump_path) => dump_path,
         };
         let source_filename = source_path
             .to_str()
             .ok_or_else(|| Error::Filename(source_path.into()))?
-            .to_string();
+            .to_string();*/
 
         let dump = dump::read(dump_path)?;
         let reader = BufReader::new(fileutil::open(&trace_path)?);
-        let mut prof = Profile::new(source_filename, dump)?;
-        parse_trace_file(reader, &mut prof)?;
+        let mut prof = Profile::new(dump)?;
+        parse(reader, &mut prof)?;
 
         Ok(prof)
     }
 
+    /// Writes the generated assembly file.
+    pub fn write_asm(&self, asm_path: &Path) -> Result<()> {
+        let output = fileutil::open_w(asm_path)?;
+        self.asm.write(output)
+    }
+
     /// Writes the profile data in the callgrind file format.
     /// See details of the format in the Valgrind documentation.
-    pub fn write_callgrind(&self, mut output: impl Write) -> Result<()> {
+    pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
         writeln!(output, "# callgrind format")?;
         writeln!(output, "version: 1")?;
         writeln!(output, "creator: bpf-profile")?;
         writeln!(output, "events: Instructions")?;
         writeln!(output, "totals: {}", self.total_cost)?;
-        writeln!(output, "fl={}", self.source_filename)?;
+        writeln!(output, "fl={}", asm_fl)?;
         write_callgrind_functions(&self.functions, output)?;
         Ok(())
     }
 
+    /// Adds instruction to the generated assembly listing.
+    fn keep_asm(&mut self, ix: &Instruction) {
+        self.asm.add_instruction(ix.pc, &ix.text);
+    }
+
     /// Increments the total cost and the cost of current call.
-    fn increment_cost(&mut self) {
+    fn increment_cost(&mut self, pc: ProgramCounter) {
         tracing::debug!("Profile.increment_cost");
         self.total_cost += 1;
-        self.ground.increment_cost(&mut self.functions);
+        self.ground.increment_cost(pc, &mut self.functions);
     }
 
     /// Adds next call to the call stack.
@@ -122,72 +136,12 @@ impl Profile {
     }
 }
 
-/// Parses the trace file line by line building the Profile instance.
-pub fn parse_trace_file(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
-    let mut line = String::with_capacity(512);
-    let mut bytes_read = usize::MAX;
-    let mut lc = 0_usize;
-    let mut ix: Instruction;
-
-    while bytes_read != 0 {
-        if line.is_empty() {
-            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
-            lc += 1;
-        }
-
-        let ixr = Instruction::parse(&line);
-        if let Err(Error::TraceSkipped) = &ixr {
-            /* warn!("Skip '{}'", &line.trim()); */
-            line.clear();
-            continue;
-        }
-        ix = ixr?;
-
-        if ix.is_exit() {
-            prof.increment_cost();
-            prof.pop_call();
-            line.clear();
-            continue;
-        }
-
-        if !ix.is_call() {
-            prof.increment_cost();
-            line.clear();
-            continue;
-        }
-
-        // Handle sequences of enclosed calls as well:
-        // 604: call 0xcb3fc071
-        // 588: call 0x8e0001f9
-        // 1024: call 0x8bf38212
-        // ...
-        while ix.is_call() {
-            prof.increment_cost();
-            let call = Call::from(&ix, lc)?;
-            // Read next line — the first instruction of the call
-            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
-            lc += 1;
-            ix = Instruction::parse(&line)?;
-            prof.push_call(call, ix.pc());
-        }
-        // Keep here the last non-call line to process further
-    }
-
-    if prof.ground.depth > 0 {
-        tracing::warn!("Unbalanced call/exit: {}", &prof.ground.depth);
-        for _ in 0..prof.ground.depth {
-            prof.pop_call();
-        }
-    }
-    Ok(())
-}
-
 /// Represents a function call.
 #[derive(Clone, Debug)]
 struct Call {
     address: Address,
     caller: Address,
-    cost: usize,
+    cost: Cost,
     callee: Box<Option<Call>>,
     depth: usize,
 }
@@ -226,18 +180,18 @@ impl Call {
     }
 
     /// Increments the cost of this call.
-    fn increment_cost(&mut self, functions: &mut Functions) {
+    fn increment_cost(&mut self, pc: ProgramCounter, functions: &mut Functions) {
         tracing::debug!("Call({}).increment_cost", self.address);
         match *self.callee {
             Some(ref mut callee) => {
-                callee.increment_cost(functions);
+                callee.increment_cost(pc, functions);
             }
             None => {
                 self.cost += 1;
                 let f = functions
                     .get_mut(&self.address)
-                    .expect("Call address not found in registry of functions");
-                f.increment_cost();
+                    .expect("Call address not found in the registry of functions");
+                f.increment_cost(pc);
             }
         }
     }
@@ -281,19 +235,13 @@ impl Call {
     }
 }
 
-/// Converts a hex number string representation to integer Address.
-fn hex_str_to_address(s: &str) -> Address {
-    let a = s.trim_start_matches("0x");
-    Address::from_str_radix(a, 16).expect("Invalid address")
-}
-
 /// Represents a function which will be dumped into a profile.
 #[derive(Debug)]
 struct Function {
     address: Address,
     name: String,
-    pc: ProgramCounter,
-    cost: usize,
+    entry: ProgramCounter,
+    costs: Costs,
     calls: Vec<Call>,
 }
 
@@ -303,8 +251,8 @@ impl Function {
         Function {
             address: GROUND_ZERO,
             name: "GROUND_ZERO".into(),
-            pc: 0,
-            cost: 0,
+            entry: 0,
+            costs: BTreeMap::new(),
             calls: Vec::new(),
         }
     }
@@ -315,16 +263,17 @@ impl Function {
         Function {
             address,
             name: dump.resolve(address, first_pc),
-            pc: first_pc,
-            cost: 0,
+            entry: first_pc,
+            costs: BTreeMap::new(),
             calls: Vec::new(),
         }
     }
 
     /// Increments the immediate cost of the function.
-    fn increment_cost(&mut self) {
+    fn increment_cost(&mut self, pc: ProgramCounter) {
         tracing::debug!("Function({}).increment_cost", self.address);
-        self.cost += 1;
+        let c = *self.costs.entry(pc).or_insert(0);
+        self.costs.insert(pc, c + 1);
     }
 
     /// Adds finished enclosed call for this function.
@@ -381,6 +330,68 @@ impl Instruction {
     }
 }
 
+/// Parses the trace file line by line building the Profile instance.
+pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
+    let mut line = String::with_capacity(512);
+    let mut bytes_read = usize::MAX;
+    let mut lc = 0_usize;
+    let mut ix: Instruction;
+
+    while bytes_read != 0 {
+        if line.is_empty() {
+            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+            lc += 1;
+        }
+
+        let ixr = Instruction::parse(&line);
+        if let Err(Error::TraceSkipped) = &ixr {
+            /* warn!("Skip '{}'", &line.trim()); */
+            line.clear();
+            continue;
+        }
+        ix = ixr?;
+
+        prof.keep_asm(&ix);
+
+        if ix.is_exit() {
+            prof.increment_cost(ix.pc());
+            prof.pop_call();
+            line.clear();
+            continue;
+        }
+
+        if !ix.is_call() {
+            prof.increment_cost(ix.pc());
+            line.clear();
+            continue;
+        }
+
+        // Handle sequences of enclosed calls as well:
+        // 604: call 0xcb3fc071
+        // 588: call 0x8e0001f9
+        // 1024: call 0x8bf38212
+        // ...
+        while ix.is_call() {
+            prof.increment_cost(ix.pc());
+            let call = Call::from(&ix, lc)?;
+            // Read next line — the first instruction of the call
+            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+            lc += 1;
+            ix = Instruction::parse(&line)?;
+            prof.push_call(call, ix.pc());
+        }
+        // Keep here the last non-call line to process further
+    }
+
+    if prof.ground.depth > 0 {
+        tracing::warn!("Unbalanced call/exit: {}", &prof.ground.depth);
+        for _ in 0..prof.ground.depth {
+            prof.pop_call();
+        }
+    }
+    Ok(())
+}
+
 /// Writes information about calls of functions and their costs.
 fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> Result<()> {
     let mut statistics = Map::new();
@@ -391,7 +402,7 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         }
         writeln!(output)?;
         writeln!(output, "fn={}", f.name)?;
-        writeln!(output, "{} {}", f.pc, f.cost)?;
+        writeln!(output, "{} {}", f.entry, f.costs.values().sum::<Cost>())?;
         statistics.clear();
         for c in &f.calls {
             let stat = statistics.entry(&c.address).or_insert((0_usize, 0_usize));
@@ -401,11 +412,17 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         }
         for (a, s) in &statistics {
             writeln!(output, "cfn={}", functions[a].name)?;
-            writeln!(output, "calls={} {}", s.0, functions[a].pc)?;
-            writeln!(output, "{} {}", f.pc, s.1)?;
+            writeln!(output, "calls={} 0x{:x}", s.0, a)?;
+            writeln!(output, "{} {}", f.entry, s.1)?;
         }
     }
 
     output.flush()?;
     Ok(())
+}
+
+/// Converts a hex number string representation to integer Address.
+fn hex_str_to_address(s: &str) -> Address {
+    let a = s.trim_start_matches("0x");
+    Address::from_str_radix(a, 16).expect("Invalid address")
 }

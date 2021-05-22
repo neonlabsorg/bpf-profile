@@ -40,7 +40,7 @@ version: 1
 creator: bpf-profile
 events: Instructions
 totals: 28
-fl=trace
+fl=\"trace.asm\"
 
 fn=function_0
 3 6

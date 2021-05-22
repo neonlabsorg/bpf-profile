@@ -1,5 +1,6 @@
 //! bpf-profile generate command implementation.
 
+mod asm;
 mod dump;
 mod fileutil;
 mod trace;
@@ -50,9 +51,10 @@ use trace::Profile;
 /// Runs the conversion from trace to a profiler output.
 pub fn run(
     trace_path: &Path,
+    asm_path: &Path,
     dump_path: Option<&Path>,
-    output_path: Option<&Path>,
     _: &str, // always 'callgrind' currently
+    output_path: Option<&Path>,
 ) -> Result<()> {
     if !trace::contains_standard_header(BufReader::new(fileutil::open(&trace_path)?))? {
         return Err(Error::TraceFormat);
@@ -60,11 +62,16 @@ pub fn run(
 
     let profile = Profile::create(trace_path, dump_path)?;
 
+    profile.write_asm(asm_path)?;
+
+    let asm_filename = asm_path
+        .to_str()
+        .ok_or_else(|| Error::Filename(asm_path.into()))?;
     match output_path {
-        None => profile.write_callgrind(io::stdout()),
+        None => profile.write_callgrind(io::stdout(), asm_filename),
         Some(output_path) => {
-            let output = fileutil::open_w(&output_path)?;
-            profile.write_callgrind(BufWriter::new(output))
+            let output = fileutil::open_w(output_path)?;
+            profile.write_callgrind(BufWriter::new(output), asm_filename)
         }
     }
 }

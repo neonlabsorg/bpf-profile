@@ -31,17 +31,18 @@ pub enum Command {
             parse(from_os_str),
             short,
             long,
-            help = "Optional path to the input dump file"
+            default_value = &config::DEFAULT_ASM,
+            help = "Path to generated assembly file"
         )]
-        dump: Option<PathBuf>,
+        asm: PathBuf,
 
         #[structopt(
             parse(from_os_str),
             short,
             long,
-            help = "Path to generated file [default: stdout]"
+            help = "Optional path to the input dump file"
         )]
-        output: Option<PathBuf>,
+        dump: Option<PathBuf>,
 
         #[structopt(
             short,
@@ -51,6 +52,14 @@ pub enum Command {
             help = "Format of the generated profile"
         )]
         format: String,
+
+        #[structopt(
+            parse(from_os_str),
+            short,
+            long,
+            help = "Path to generated profile [default: stdout]"
+        )]
+        output: Option<PathBuf>,
     },
 }
 

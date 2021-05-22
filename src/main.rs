@@ -41,15 +41,17 @@ fn execute(app: cli::Application) -> gen::Result<()> {
     match app.cmd {
         cli::Command::Generate {
             trace,
+            asm,
             dump,
-            output,
             format,
+            output,
         } => {
             gen::run(
                 &trace,
+                &asm,
                 dump.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
-                output.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
                 &format,
+                output.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
             )?;
         }
     }
