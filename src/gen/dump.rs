@@ -35,10 +35,20 @@ impl Resolver {
         Ok(resolver)
     }
 
+    /// Takes an address and returns name of corresponding function.
+    pub fn resolve(&self, address: Address) -> String {
+        tracing::debug!("Resolver.resolve(0x{:x})", &address);
+        assert_ne!(address, GROUND_ZERO);
+        let func_index = self.index_function_by_address[&address];
+        let func_name = self.functions[func_index].clone();
+        tracing::debug!("Resolver.resolve returns {})", &func_name);
+        func_name
+    }
+
     /// Takes an address and returns name of corresponding function,
     /// otherwise returns a generated string if can not resolve properly.
-    pub fn resolve(&mut self, address: Address, first_pc: ProgramCounter) -> String {
-        tracing::debug!("Resolver.resolve(0x{:x}, {})", &address, &first_pc);
+    pub fn update(&mut self, address: Address, first_pc: ProgramCounter) -> String {
+        tracing::debug!("Resolver.update(0x{:x}, {})", &address, &first_pc);
         assert_ne!(address, GROUND_ZERO);
 
         let found = self.index_function_by_address.contains_key(&address);
@@ -58,17 +68,17 @@ impl Resolver {
 
         let func_index = self.index_function_by_address[&address];
         let func_name = self.functions[func_index].clone();
-        tracing::debug!("Resolver.resolve returns {})", &func_name);
+        tracing::debug!("Resolver.update returns {})", &func_name);
         func_name
     }
 
     /// Checks if a function has been indexed already.
-    pub fn contains_function_with_first_pc(&self, first_pc: ProgramCounter) -> bool {
+    fn contains_function_with_first_pc(&self, first_pc: ProgramCounter) -> bool {
         self.index_function_by_first_pc.contains_key(&first_pc)
     }
 
     /// Creates new entry in the index of functions by their first instruction's pc.
-    pub fn update_first_pc_index(&mut self, name: &str, first_pc: ProgramCounter) -> Index {
+    fn update_first_pc_index(&mut self, name: &str, first_pc: ProgramCounter) -> Index {
         let func_index = self.functions.len();
         self.functions.push(name.into());
         self.index_function_by_first_pc.insert(first_pc, func_index);

@@ -3,6 +3,7 @@
 mod asm;
 mod dump;
 mod fileutil;
+mod profile;
 mod trace;
 
 #[cfg(test)]
@@ -35,8 +36,8 @@ pub enum Error {
     TraceFormat,
     #[error("Skipped input")]
     TraceSkipped,
-    #[error("Instruction is not a call: '{0}'")]
-    TraceNotCall(String),
+    #[error("Instruction at line {1} is not a call: '{0}'")]
+    TraceNotCall(String, usize),
     #[error("Cannot parse trace instruction '{0}' at line {1}")]
     TraceParsing(String, usize),
 }
