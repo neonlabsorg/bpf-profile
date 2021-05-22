@@ -400,9 +400,13 @@ fn write_callgrind_functions(functions: &Functions, mut output: impl Write) -> R
         if *a == GROUND_ZERO {
             continue;
         }
+
         writeln!(output)?;
         writeln!(output, "fn={}", f.name)?;
-        writeln!(output, "{} {}", f.entry, f.costs.values().sum::<Cost>())?;
+        for (pc, cost) in &f.costs {
+            writeln!(output, "{} {}", pc, cost)?;
+        }
+
         statistics.clear();
         for c in &f.calls {
             let stat = statistics.entry(&c.address).or_insert((0_usize, 0_usize));

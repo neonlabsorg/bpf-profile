@@ -20,10 +20,10 @@ impl Source {
         if index >= self.lines.len() {
             self.lines.resize(index + 1, String::default());
         }
-        let generated = format!("{}: {}", index + 1, text);
+        let generated = format!("{}:\t\t {}", index + 1, text);
         if self.lines[index].is_empty() {
             self.lines[index] = generated;
-        } else if self.lines[index] != generated {
+        } else if !self.lines[index].starts_with(&generated) {
             panic!(
                 "Inconsistent input: expected '{}', got '{}'",
                 &self.lines[index], &generated
