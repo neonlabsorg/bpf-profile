@@ -1,6 +1,6 @@
 //! bpf-profile implementation of the profile struct.
 
-use super::{asm, fileutil, Error, Result};
+use super::{fileutil, Error, Result};
 use crate::config::{Address, Cost, Map, ProgramCounter, GROUND_ZERO};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -31,6 +31,7 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
     Ok(false)
 }
 
+use super::asm::{self, Instruction};
 use super::dump::{self, Resolver};
 
 /// Represents the profile.
@@ -99,7 +100,7 @@ impl Profile {
 
     /// Adds instruction to the generated assembly listing.
     fn keep_asm(&mut self, ix: &Instruction) {
-        self.asm.add_instruction(ix.pc, &ix.text);
+        self.asm.add_instruction(ix.pc(), &ix.text());
     }
 
     /// Increments the total cost and the cost of current call.
@@ -279,53 +280,6 @@ impl Call {
             self.cost += call.cost;
             call
         }
-    }
-}
-
-/// Represents trace instruction (call or another).
-#[derive(Debug)]
-struct Instruction {
-    pc: ProgramCounter,
-    text: String,
-}
-
-impl Instruction {
-    /// Parses the input string and creates corresponding instruction if possible.
-    fn parse(s: &str) -> Result<Self> {
-        lazy_static! {
-            static ref TRACE_INSTRUCTION: Regex =
-                Regex::new(r"\d+\s+\[.+\]\s+(\d+):\s+(.+)").expect("Invalid regex");
-        }
-
-        if let Some(caps) = TRACE_INSTRUCTION.captures(s) {
-            let pc = caps[1]
-                .parse::<ProgramCounter>()
-                .expect("Cannot parse program counter");
-            let text = caps[2].trim().to_string();
-            return Ok(Instruction { pc, text });
-        }
-
-        Err(Error::TraceSkipped)
-    }
-
-    /// Returns copy of the textual representation.
-    fn text(&self) -> String {
-        self.text.clone()
-    }
-
-    /// Returns program counter of the instruction.
-    fn pc(&self) -> ProgramCounter {
-        self.pc
-    }
-
-    /// Checks if the instruction is a call of function.
-    fn is_call(&self) -> bool {
-        self.text.starts_with("call")
-    }
-
-    /// Checks if the instruction is exit of function.
-    fn is_exit(&self) -> bool {
-        self.text == "exit"
     }
 }
 
