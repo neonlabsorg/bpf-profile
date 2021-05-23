@@ -1,7 +1,7 @@
 //! bpf-profile generate command implementation.
 
 mod asm;
-mod fileutil;
+mod buf;
 mod profile;
 mod resolver;
 mod trace;
@@ -45,7 +45,7 @@ pub enum Error {
 /// Represents results.
 pub type Result<T> = std::result::Result<T, Error>;
 
-use std::io::{BufReader, BufWriter};
+use crate::config::DEFAULT_ASM;
 use std::path::Path;
 use trace::Profile;
 
@@ -57,14 +57,14 @@ pub fn run(
     _: &str, // always 'callgrind' currently
     output_path: Option<&Path>,
 ) -> Result<()> {
-    if !trace::contains_standard_header(BufReader::new(fileutil::open(&trace_path)?))? {
+    if !trace::contains_standard_header(buf::open(&trace_path)?)? {
         return Err(Error::TraceFormat);
     }
 
     let profile = Profile::create(trace_path, dump_path, asm_path)?;
 
     let source_filename = match asm_path {
-        None => "<none>",
+        None => DEFAULT_ASM,
         Some(asm_path) => asm_path
             .to_str()
             .ok_or_else(|| Error::Filename(asm_path.into()))?,
@@ -73,8 +73,8 @@ pub fn run(
     match output_path {
         None => profile.write_callgrind(io::stdout(), source_filename),
         Some(output_path) => {
-            let output = fileutil::open_w(output_path)?;
-            profile.write_callgrind(BufWriter::new(output), source_filename)
+            let output = buf::open_w(output_path)?;
+            profile.write_callgrind(output, source_filename)
         }
     }
 }

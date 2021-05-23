@@ -2,6 +2,7 @@
 
 mod mock;
 
+use crate::config;
 use crate::gen::{resolver, trace};
 use std::fs;
 use std::io::Cursor;
@@ -35,7 +36,7 @@ fn generate_integral() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, "<none>");
+    let r = prof.write_callgrind(&mut output, config::DEFAULT_ASM);
     assert!(r.is_ok());
 
     //==== do not delete ====================================

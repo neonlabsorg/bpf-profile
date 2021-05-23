@@ -107,7 +107,7 @@ pub struct Source {
     ixs: Vec<Instruction>,
 }
 
-use super::fileutil;
+use super::buf;
 use super::resolver::Resolver;
 use std::io::Write;
 
@@ -138,43 +138,60 @@ impl Source {
 
     /// Writes all lines of the listing to a file.
     pub fn write(&self, resolver: &Resolver) -> Result<()> {
-        let mut output = fileutil::open_w(&self.output_path)?;
-
-        for i in 0..self.ixs.len() {
-            let ix = &self.ixs[i];
-
-            if i == 0 && ix.is_empty() {
-                writeln!(
-                    output,
-                    ";; Generated BPF source code for QCacheGrind: {:?}",
-                    &self.output_path
-                )?;
-                continue;
-            }
-
-            let comment = match resolver.resolve_by_first_pc(ix.pc()) {
-                None => "".to_owned(),
-                Some(name) => format!("\t; {}", &name),
-            };
-
-            if ix.is_call() {
-                let op = ix.extract_call_operation(i)?;
-                let address = ix.extract_call_target(i)?;
-                let name = resolver.resolve_by_address(address);
-                let ix = Instruction {
-                    pc: ix.pc(),
-                    text: format!("{} {}", &op, &name),
-                };
-                writeln!(output, "{}{}", ix, comment)?;
-                continue;
-            }
-
-            writeln!(output, "{}{}", ix, comment)?;
+        let output = buf::open_w(&self.output_path)?;
+        if resolver.is_default() {
+            write_assembly_from_trace(output, &self.ixs, resolver)?;
+        } else {
+            write_assembly_from_dump(output, &self.ixs, resolver)?;
         }
-
-        output.flush()?;
         Ok(())
     }
+}
+
+/// Writes all lines of the listing to a file.
+/// Uses assembly instructions from the trace file.
+fn write_assembly_from_trace(
+    mut output: impl Write,
+    ixs: &[Instruction],
+    resolver: &Resolver,
+) -> Result<()> {
+    for (i, ix) in ixs.iter().enumerate() {
+        if i == 0 && ix.is_empty() {
+            writeln!(output, ";; Generated BPF source code for QCacheGrind")?;
+            continue;
+        }
+
+        let comment = match resolver.resolve_by_first_pc(ix.pc()) {
+            None => "".to_owned(),
+            Some(name) => format!("\t; {}", &name),
+        };
+
+        if ix.is_call() {
+            let op = ix.extract_call_operation(i)?;
+            let address = ix.extract_call_target(i)?;
+            let name = resolver.resolve_by_address(address);
+            let ix = Instruction {
+                pc: ix.pc(),
+                text: format!("{} {}", &op, &name),
+            };
+            writeln!(output, "{}{}", ix, comment)?;
+            continue;
+        }
+
+        writeln!(output, "{}{}", ix, comment)?;
+    }
+
+    output.flush()?;
+    Ok(())
+}
+
+/// TODO: take prettier assembly from dump
+fn write_assembly_from_dump(
+    output: impl Write,
+    ixs: &[Instruction],
+    resolver: &Resolver,
+) -> Result<()> {
+    write_assembly_from_trace(output, ixs, resolver)
 }
 
 /// Converts hex number string representation to integer Address.

@@ -1,11 +1,11 @@
 //! bpf-profile trace module.
 //! Implements parsing of the trace file and generating the profile.
 
-use super::{fileutil, Error, Result};
+use super::{buf, Error, Result};
 use crate::config::{Cost, Map, ProgramCounter};
 use lazy_static::lazy_static;
 use regex::Regex;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, Write};
 use std::path::Path;
 
 /// Checks the trace file contains expected header line.
@@ -19,7 +19,7 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
     let mut bytes_read = usize::MAX;
 
     while bytes_read != 0 {
-        bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+        bytes_read = buf::read_line(&mut reader, &mut line)?;
         if TRACE_HEADER.is_match(&line) {
             return Ok(true);
         }
@@ -66,7 +66,7 @@ impl Profile {
         tracing::debug!("Profile.create {:?}", trace_path);
 
         let resolv = resolver::read(dump_path)?;
-        let reader = BufReader::new(fileutil::open(&trace_path)?);
+        let reader = buf::open(&trace_path)?;
         let mut prof = Profile::new(resolv, asm_path)?;
         parse(reader, &mut prof)?;
 
@@ -77,7 +77,8 @@ impl Profile {
     /// See details of the format in the Valgrind documentation.
     pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
         if self.asm.is_some() {
-            self.asm.as_ref().unwrap().write(&self.resolv)?;
+            let asm = self.asm.as_ref().unwrap();
+            asm.write(&self.resolv)?;
         }
 
         writeln!(output, "# callgrind format")?;
@@ -140,7 +141,7 @@ pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
 
     while bytes_read != 0 {
         if line.is_empty() {
-            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+            bytes_read = buf::read_line(&mut reader, &mut line)?;
             lc += 1;
         }
 
@@ -176,7 +177,7 @@ pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
             prof.increment_cost(ix.pc());
             let call = Call::from(&ix, lc)?;
             // Read next line — the first instruction of the call
-            bytes_read = fileutil::read_line(&mut reader, &mut line)?;
+            bytes_read = buf::read_line(&mut reader, &mut line)?;
             lc += 1;
             ix = Instruction::parse(&line)?;
             prof.push_call(call, ix.pc());

@@ -7,6 +7,8 @@ pub const DEFAULT_CONFIG: &str = "bpf-profile.conf";
 pub const FORMATS: &[&str] = &["callgrind"];
 pub const DEFAULT_FORMAT: &str = "callgrind";
 
+pub const DEFAULT_ASM: &str = "<none>";
+
 pub type Cost = usize;
 pub type Index = usize;
 pub type Address = usize;
