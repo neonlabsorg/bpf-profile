@@ -42,7 +42,7 @@ fn generate_integral() {
     //println!("{}", std::str::from_utf8(&output).unwrap());
     //=======================================================
 
-    assert_eq!(output.len(), 253);
+    assert_eq!(output.len(), 301);
     assert_eq!(output, mock::SIMPLE_CALLGRIND_INTEGRAL);
 }
 
@@ -67,16 +67,16 @@ fn generate_line_by_line() {
     //println!("{}", std::str::from_utf8(&output).unwrap());
     //=======================================================
 
-    assert_eq!(output.len(), 416);
+    assert_eq!(output.len(), 488);
     assert_eq!(output, mock::SIMPLE_CALLGRIND_LINE_BY_LINE);
 
     let asm = fs::read_to_string(&asm).unwrap();
 
     //==== do not delete ====================================
-    //println!("{}", asm);
+    println!("{}", asm);
     //=======================================================
 
-    assert_eq!(asm.len(), 267);
+    assert_eq!(asm.len(), 347);
     assert_eq!(asm, mock::SIMPLE_GENERATED_ASM);
 }
 

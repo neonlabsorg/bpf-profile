@@ -39,22 +39,22 @@ events: Instructions
 totals: 25
 fl=<none>
 
-fn=function_0
+fn=function_0 (0x100)
 4 6
-cfn=function_1
+cfn=function_1 (0x200)
 calls=1 0x200
 5 8
-cfn=function_2
+cfn=function_2 (0x300)
 calls=3 0x300
 6 6
 
-fn=function_1
+fn=function_1 (0x200)
 20 4
-cfn=function_2
+cfn=function_2 (0x300)
 calls=2 0x300
 21 4
 
-fn=function_2
+fn=function_2 (0x300)
 30 10
 ";
 
@@ -65,51 +65,51 @@ events: Instructions
 totals: 25
 fl=/tmp/generate_line_by_line.asm
 
-fn=function_0
+fn=function_0 (0x100)
 4 1
 5 1
 6 1
 7 1
 8 1
 9 1
-cfn=function_1
+cfn=function_1 (0x200)
 calls=1 0x200
 5 8
-cfn=function_2
+cfn=function_2 (0x300)
 calls=1 0x300
 6 2
-cfn=function_2
+cfn=function_2 (0x300)
 calls=1 0x300
 7 2
-cfn=function_2
+cfn=function_2 (0x300)
 calls=1 0x300
 8 2
 
-fn=function_1
+fn=function_1 (0x200)
 20 1
 21 1
 22 1
 23 1
-cfn=function_2
+cfn=function_2 (0x300)
 calls=1 0x300
 21 2
-cfn=function_2
+cfn=function_2 (0x300)
 calls=1 0x300
 22 2
 
-fn=function_2
+fn=function_2 (0x300)
 30 5
 31 5
 ";
 
 pub const SIMPLE_GENERATED_ASM: &str = r"1:	aaa
 2:	bbb
-3:	call function_0
-4:	xxx	; function_0
-5:	call function_1
-6:	call function_2
-7:	call function_2
-8:	call function_2
+3:	call function_0 (0x100)
+4:	xxx	; function_0 (0x100)
+5:	call function_1 (0x200)
+6:	call function_2 (0x300)
+7:	call function_2 (0x300)
+8:	call function_2 (0x300)
 9:	exit
 10:	ccc
 11:	ddd
@@ -121,9 +121,9 @@ pub const SIMPLE_GENERATED_ASM: &str = r"1:	aaa
 
 
 
-20:	yyy	; function_1
-21:	call function_2
-22:	call function_2
+20:	yyy	; function_1 (0x200)
+21:	call function_2 (0x300)
+22:	call function_2 (0x300)
 23:	exit
 
 
@@ -131,6 +131,6 @@ pub const SIMPLE_GENERATED_ASM: &str = r"1:	aaa
 
 
 
-30:	zzz	; function_2
+30:	zzz	; function_2 (0x300)
 31:	exit
 ";

@@ -64,8 +64,10 @@ impl Resolver {
                 let func_index = self.index_function_by_first_pc[&first_pc];
                 self.index_function_by_address.insert(address, func_index);
             } else {
-                let unresolved_func_name =
-                    format!("{}{}", PREFIX_OF_UNRESOLVED, self.unresolved_counter);
+                let unresolved_func_name = format!(
+                    "{}{} (0x{:x})",
+                    PREFIX_OF_UNRESOLVED, self.unresolved_counter, address
+                );
                 self.unresolved_counter += 1;
                 let func_index = self.update_first_pc_index(&unresolved_func_name, first_pc);
                 self.index_function_by_address.insert(address, func_index);
