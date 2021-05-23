@@ -22,7 +22,7 @@ pub struct Application {
 
 #[derive(StructOpt)]
 pub enum Command {
-    #[structopt(about = "Generates profile")]
+    #[structopt(about = "Generates performance profile from BPF trace")]
     Generate {
         #[structopt(parse(from_os_str), help = "Path to the input trace file")]
         trace: PathBuf,
@@ -32,7 +32,7 @@ pub enum Command {
             short,
             long,
             default_value = &config::DEFAULT_ASM,
-            help = "Path to generated assembly file"
+            help = "Path to the generated assembly file"
         )]
         asm: PathBuf,
 
@@ -57,7 +57,7 @@ pub enum Command {
             parse(from_os_str),
             short,
             long,
-            help = "Path to generated profile [default: stdout]"
+            help = "Path to the generated profile [default: stdout]"
         )]
         output: Option<PathBuf>,
     },

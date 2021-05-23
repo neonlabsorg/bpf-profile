@@ -58,6 +58,18 @@ impl Instruction {
         self.text == "exit"
     }
 
+    /// Returns "call" or "callx" or error if instruction is not a call.
+    pub fn extract_call_operation(&self, lc: usize) -> Result<String> {
+        if !self.is_call() {
+            return Err(Error::TraceNotCall(self.text(), lc));
+        }
+        let mut pair = self.text.split_whitespace(); // => "call something"
+        let op = pair
+            .next()
+            .ok_or_else(|| Error::TraceParsing(self.text(), lc))?;
+        Ok(op.to_string())
+    }
+
     /// Returns address of a call target or error if instruction is not a call.
     pub fn extract_call_target(&self, lc: usize) -> Result<Address> {
         if !self.is_call() {
@@ -122,15 +134,16 @@ impl Source {
         for i in 0..self.ixs.len() {
             let ix = &self.ixs[i];
             if i == 0 && ix.is_empty() {
-                writeln!(output, "Generated BPF assembly code for QCacheGrind")?;
+                writeln!(output, "Generated BPF source code for QCacheGrind")?;
                 continue;
             }
             if ix.is_call() {
+                let op = ix.extract_call_operation(i)?;
                 let address = ix.extract_call_target(i)?;
                 let name = resolver.resolve(address);
                 let ix = Instruction {
                     pc: ix.pc(),
-                    text: format!("call {}", &name),
+                    text: format!("{} {}", &op, &name),
                 };
                 writeln!(output, "{}", ix)?;
                 continue;
@@ -142,7 +155,7 @@ impl Source {
     }
 }
 
-/// Converts a hex number string representation to integer Address.
+/// Converts hex number string representation to integer Address.
 fn hex_str_to_address(s: &str) -> Address {
     let a = s.trim_start_matches("0x");
     Address::from_str_radix(a, 16).expect("Invalid address")

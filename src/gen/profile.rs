@@ -40,6 +40,7 @@ impl Function {
         }
     }
 
+    /// Returns copy of the function's name.
     pub fn name(&self) -> String {
         self.name.clone()
     }
@@ -77,7 +78,7 @@ impl Call {
     pub fn new(address: Address, caller_pc: ProgramCounter) -> Self {
         Call {
             address,
-            caller: Address::default(),
+            caller: Address::default(), // will be found later
             caller_pc,
             cost: 0,
             callee: Box::new(None),
@@ -95,6 +96,7 @@ impl Call {
         Ok(Call::new(address, ix.pc()))
     }
 
+    /// Returns address of the call.
     pub fn address(&self) -> Address {
         self.address
     }
@@ -104,10 +106,12 @@ impl Call {
         self.address == GROUND_ZERO
     }
 
+    /// Returns address of the caller.
     pub fn caller(&self) -> Address {
         self.caller
     }
 
+    /// Returns depth of enclosed callees.
     pub fn depth(&self) -> usize {
         self.depth
     }
@@ -179,12 +183,14 @@ pub fn write_callgrind_functions(mut output: impl Write, functions: &Functions) 
             continue;
         }
 
+        // Dump line-by-line costs of current function
         writeln!(output)?;
         writeln!(output, "fn={}", f.name())?;
         for (pc, cost) in &f.costs {
             writeln!(output, "{} {}", pc, cost)?;
         }
 
+        // Collect statistics of callees
         statistics.clear();
         for c in &f.calls {
             let key = (c.caller_pc, c.address);
@@ -193,6 +199,8 @@ pub fn write_callgrind_functions(mut output: impl Write, functions: &Functions) 
             let inclusive_cost = stat.1 + c.cost;
             statistics.insert(key, (number_of_calls, inclusive_cost));
         }
+
+        // Finally dump the statistics
         for ((pc, address), (number_of_calls, inclusive_cost)) in &statistics {
             writeln!(output, "cfn={}", functions[address].name)?;
             writeln!(output, "calls={} 0x{:x}", number_of_calls, address)?;

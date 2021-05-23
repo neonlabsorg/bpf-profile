@@ -49,7 +49,7 @@ use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use trace::Profile;
 
-/// Runs the conversion from trace to a profiler output.
+/// Runs the conversion from BPF trace to a profiler output.
 pub fn run(
     trace_path: &Path,
     asm_path: &Path,
