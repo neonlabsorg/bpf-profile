@@ -35,6 +35,7 @@ pub const SIMPLE_INPUT: &[u8] = b"
 pub const SIMPLE_CALLGRIND_INTEGRAL: &[u8] = b"# callgrind format
 version: 1
 creator: bpf-profile
+positions: line
 events: Instructions
 totals: 25
 fl=<none>
@@ -61,6 +62,7 @@ fn=function_2 (0x300)
 pub const SIMPLE_CALLGRIND_LINE_BY_LINE: &[u8] = b"# callgrind format
 version: 1
 creator: bpf-profile
+positions: line
 events: Instructions
 totals: 25
 fl=/tmp/generate_line_by_line.asm

@@ -15,7 +15,7 @@ pub struct Function {
     calls: Vec<Call>,
 }
 
-use super::dump::Resolver;
+use super::resolver::Resolver;
 use crate::config::GROUND_ZERO;
 
 impl Function {

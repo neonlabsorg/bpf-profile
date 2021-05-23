@@ -29,8 +29,8 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
 }
 
 use super::asm::{self, Instruction};
-use super::dump::{self, Resolver};
 use super::profile::{self, Call, Function, Functions};
+use super::resolver::{self, Resolver};
 use crate::config::GROUND_ZERO;
 
 /// Represents the profile.
@@ -39,20 +39,20 @@ pub struct Profile {
     total_cost: Cost,
     ground: Call,
     functions: Functions,
-    dump: Resolver,
+    resolv: Resolver,
     asm: Option<asm::Source>,
 }
 
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(dump: Resolver, asm_path: Option<&Path>) -> Result<Self> {
+    pub fn new(resolv: Resolver, asm_path: Option<&Path>) -> Result<Self> {
         let mut functions = Map::new();
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
             total_cost: 0,
             ground: Call::new(GROUND_ZERO, 0),
             functions,
-            dump,
+            resolv,
             asm: asm_path.map(|p| asm::Source::new(p)),
         })
     }
@@ -65,9 +65,9 @@ impl Profile {
     ) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", trace_path);
 
-        let dump = dump::read(dump_path)?;
+        let resolv = resolver::read(dump_path)?;
         let reader = BufReader::new(fileutil::open(&trace_path)?);
-        let mut prof = Profile::new(dump, asm_path)?;
+        let mut prof = Profile::new(resolv, asm_path)?;
         parse(reader, &mut prof)?;
 
         Ok(prof)
@@ -77,12 +77,13 @@ impl Profile {
     /// See details of the format in the Valgrind documentation.
     pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
         if self.asm.is_some() {
-            self.asm.as_ref().unwrap().write(&self.dump)?;
+            self.asm.as_ref().unwrap().write(&self.resolv)?;
         }
 
         writeln!(output, "# callgrind format")?;
         writeln!(output, "version: 1")?;
         writeln!(output, "creator: bpf-profile")?;
+        writeln!(output, "positions: line")?;
         writeln!(output, "events: Instructions")?;
         writeln!(output, "totals: {}", self.total_cost)?;
         writeln!(output, "fl={}", asm_fl)?;
@@ -111,7 +112,7 @@ impl Profile {
         #[allow(clippy::map_entry)]
         if !self.functions.contains_key(&address) {
             tracing::debug!("Add function to the registry: {}", address);
-            let func = Function::new(address, first_pc, &mut self.dump);
+            let func = Function::new(address, first_pc, &mut self.resolv);
             self.functions.insert(address, func);
         }
     }

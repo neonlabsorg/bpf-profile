@@ -1,9 +1,9 @@
 //! bpf-profile generate command implementation.
 
 mod asm;
-mod dump;
 mod fileutil;
 mod profile;
+mod resolver;
 mod trace;
 
 #[cfg(test)]

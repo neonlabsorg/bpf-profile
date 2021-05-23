@@ -107,8 +107,8 @@ pub struct Source {
     ixs: Vec<Instruction>,
 }
 
-use super::dump::Resolver;
 use super::fileutil;
+use super::resolver::Resolver;
 use std::io::Write;
 
 impl Source {

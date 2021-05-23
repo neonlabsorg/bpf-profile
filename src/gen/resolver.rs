@@ -98,7 +98,7 @@ const HEADER: &str = "ELF Header";
 const DISASM_HEADER: &str = "Disassembly of section .text";
 
 /// Parses the dump file building the Resolver instance.
-fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> {
+fn parse_dump_file(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()> {
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
@@ -146,8 +146,8 @@ fn parse_dump_file(mut reader: impl BufRead, dump: &mut Resolver) -> Result<()> 
                     let pc = caps[1]
                         .parse::<ProgramCounter>()
                         .expect("Cannot parse program counter");
-                    if !dump.contains_function_with_first_pc(pc) {
-                        dump.update_first_pc_index(&name, pc);
+                    if !resolv.contains_function_with_first_pc(pc) {
+                        resolv.update_first_pc_index(&name, pc);
                     }
                 } else {
                     return Err(Error::DumpParsing(line, lc));
