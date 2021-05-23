@@ -3,6 +3,7 @@
 mod mock;
 
 use crate::gen::{dump, trace};
+use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 
@@ -68,6 +69,15 @@ fn generate_line_by_line() {
 
     assert_eq!(output.len(), 416);
     assert_eq!(output, mock::SIMPLE_CALLGRIND_LINE_BY_LINE);
+
+    let asm = fs::read_to_string(&asm).unwrap();
+
+    //==== do not delete ====================================
+    //println!("{}", asm);
+    //=======================================================
+
+    assert_eq!(asm.len(), 267);
+    assert_eq!(asm, mock::SIMPLE_GENERATED_ASM);
 }
 
 #[test]

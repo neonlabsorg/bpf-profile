@@ -101,3 +101,36 @@ fn=function_2
 30 5
 31 5
 ";
+
+pub const SIMPLE_GENERATED_ASM: &str = r"1:	aaa
+2:	bbb
+3:	call function_0
+4:	xxx	; function_0
+5:	call function_1
+6:	call function_2
+7:	call function_2
+8:	call function_2
+9:	exit
+10:	ccc
+11:	ddd
+
+
+
+
+
+
+
+
+20:	yyy	; function_1
+21:	call function_2
+22:	call function_2
+23:	exit
+
+
+
+
+
+
+30:	zzz	; function_2
+31:	exit
+";

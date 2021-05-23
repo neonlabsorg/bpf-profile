@@ -36,13 +36,19 @@ impl Resolver {
     }
 
     /// Takes an address and returns name of corresponding function.
-    pub fn resolve(&self, address: Address) -> String {
+    pub fn resolve_by_address(&self, address: Address) -> String {
         tracing::debug!("Resolver.resolve(0x{:x})", &address);
         assert_ne!(address, GROUND_ZERO);
         let func_index = self.index_function_by_address[&address];
         let func_name = self.functions[func_index].clone();
         tracing::debug!("Resolver.resolve returns {})", &func_name);
         func_name
+    }
+
+    /// Takes a program counter and returns name of function which begins with it.
+    pub fn resolve_by_first_pc(&self, pc: ProgramCounter) -> Option<String> {
+        let func_index = self.index_function_by_first_pc.get(&pc);
+        func_index.map(|i| self.functions[*i].clone())
     }
 
     /// Takes an address and returns name of corresponding function,

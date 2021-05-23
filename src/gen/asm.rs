@@ -93,7 +93,7 @@ impl fmt::Display for Instruction {
         if self.is_empty() {
             write!(f, "")
         } else {
-            write!(f, "{}:\t\t{}", self.pc, &self.text)
+            write!(f, "{}:\t{}", self.pc, &self.text)
         }
     }
 }
@@ -142,22 +142,34 @@ impl Source {
 
         for i in 0..self.ixs.len() {
             let ix = &self.ixs[i];
+
             if i == 0 && ix.is_empty() {
-                writeln!(output, "Generated BPF source code for QCacheGrind")?;
+                writeln!(
+                    output,
+                    ";; Generated BPF source code for QCacheGrind: {:?}",
+                    &self.output_path
+                )?;
                 continue;
             }
+
+            let comment = match resolver.resolve_by_first_pc(ix.pc()) {
+                None => "".to_owned(),
+                Some(name) => format!("\t; {}", &name),
+            };
+
             if ix.is_call() {
                 let op = ix.extract_call_operation(i)?;
                 let address = ix.extract_call_target(i)?;
-                let name = resolver.resolve(address);
+                let name = resolver.resolve_by_address(address);
                 let ix = Instruction {
                     pc: ix.pc(),
                     text: format!("{} {}", &op, &name),
                 };
-                writeln!(output, "{}", ix)?;
+                writeln!(output, "{}{}", ix, comment)?;
                 continue;
             }
-            writeln!(output, "{}", ix)?;
+
+            writeln!(output, "{}{}", ix, comment)?;
         }
 
         output.flush()?;
