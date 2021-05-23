@@ -93,7 +93,7 @@ impl fmt::Display for Instruction {
         if self.is_empty() {
             write!(f, "")
         } else {
-            write!(f, "{}:\t\t{}", self.pc + 1, &self.text)
+            write!(f, "{}:\t\t{}", self.pc, &self.text)
         }
     }
 }
@@ -122,7 +122,7 @@ impl Source {
 
     /// Adds new instruction to the listing.
     pub fn add_instruction(&mut self, ix: &Instruction) {
-        let index = ix.pc();
+        let index = ix.pc() - 1;
         if index >= self.ixs.len() {
             self.ixs.resize(index + 1, Instruction::default());
         }
