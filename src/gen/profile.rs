@@ -175,7 +175,11 @@ impl Call {
 use std::io::Write;
 
 /// Writes information about calls of functions and their costs.
-pub fn write_callgrind_functions(mut output: impl Write, functions: &Functions) -> Result<()> {
+pub fn write_callgrind_functions(
+    mut output: impl Write,
+    functions: &Functions,
+    line_by_line_profile_enabled: bool,
+) -> Result<()> {
     let mut statistics = Map::new();
 
     for (a, f) in functions {
@@ -183,17 +187,29 @@ pub fn write_callgrind_functions(mut output: impl Write, functions: &Functions) 
             continue;
         }
 
-        // Dump line-by-line costs of current function
-        writeln!(output)?;
-        writeln!(output, "fn={}", f.name())?;
-        for (pc, cost) in &f.costs {
-            writeln!(output, "{} {}", pc, cost)?;
+        // Dump costs of current function
+        writeln!(output, "\nfn={}", f.name())?;
+        if line_by_line_profile_enabled {
+            for (pc, cost) in &f.costs {
+                writeln!(output, "{} {}", pc, cost)?;
+            }
+        } else {
+            let first_pc = f.costs.iter().next().expect("Empty function").0;
+            let total_cost = f.costs.values().sum::<Cost>();
+            writeln!(output, "{} {}", first_pc, total_cost)?;
         }
 
         // Collect statistics of callees
         statistics.clear();
+        let mut addresses = Map::new();
         for c in &f.calls {
-            let key = (c.caller_pc, c.address);
+            let key = if line_by_line_profile_enabled {
+                (c.caller_pc, c.address)
+            } else {
+                let pc = addresses.entry(c.address).or_insert(c.caller_pc);
+                let unified_caller_pc = *pc;
+                (unified_caller_pc, c.address)
+            };
             let stat = statistics.entry(key).or_insert((0_usize, 0_usize));
             let number_of_calls = stat.0 + 1;
             let inclusive_cost = stat.1 + c.cost;

@@ -48,7 +48,7 @@ fn execute(app: cli::Application) -> gen::Result<()> {
         } => {
             gen::run(
                 &trace,
-                &asm,
+                asm.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
                 dump.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
                 &format,
                 output.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>

@@ -4,6 +4,7 @@ mod mock;
 
 use crate::gen::{dump, trace};
 use std::io::Cursor;
+use std::path::Path;
 
 #[test]
 fn header_missing() {
@@ -22,10 +23,10 @@ fn header_ok() {
 }
 
 #[test]
-fn generate() {
+fn generate_integral() {
     let dump = dump::Resolver::default();
     let reader = Cursor::new(mock::SIMPLE_INPUT);
-    let prof = trace::Profile::new(dump);
+    let prof = trace::Profile::new(dump, None);
     assert!(prof.is_ok());
 
     let mut prof = prof.unwrap();
@@ -33,15 +34,40 @@ fn generate() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, "trace.asm");
+    let r = prof.write_callgrind(&mut output, "<none>");
     assert!(r.is_ok());
 
     //==== do not delete ====================================
     //println!("{}", std::str::from_utf8(&output).unwrap());
     //=======================================================
 
-    assert_eq!(output.len(), 395);
-    assert_eq!(output, mock::SIMPLE_CALLGRIND);
+    assert_eq!(output.len(), 253);
+    assert_eq!(output, mock::SIMPLE_CALLGRIND_INTEGRAL);
+}
+
+#[test]
+fn generate_line_by_line() {
+    let dump = dump::Resolver::default();
+    let reader = Cursor::new(mock::SIMPLE_INPUT);
+    let asm_name = "/tmp/generate_line_by_line.asm".to_owned();
+    let asm = Path::new(&asm_name);
+    let prof = trace::Profile::new(dump, Some(&asm));
+    assert!(prof.is_ok());
+
+    let mut prof = prof.unwrap();
+    let r = trace::parse(reader, &mut prof);
+    assert!(r.is_ok());
+
+    let mut output = Vec::<u8>::new();
+    let r = prof.write_callgrind(&mut output, &asm_name);
+    assert!(r.is_ok());
+
+    //==== do not delete ====================================
+    //println!("{}", std::str::from_utf8(&output).unwrap());
+    //=======================================================
+
+    assert_eq!(output.len(), 416);
+    assert_eq!(output, mock::SIMPLE_CALLGRIND_LINE_BY_LINE);
 }
 
 #[test]

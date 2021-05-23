@@ -32,12 +32,38 @@ pub const SIMPLE_INPUT: &[u8] = b"
 25 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] 10: ddd
 ";
 
-pub const SIMPLE_CALLGRIND: &[u8] = b"# callgrind format
+pub const SIMPLE_CALLGRIND_INTEGRAL: &[u8] = b"# callgrind format
 version: 1
 creator: bpf-profile
 events: Instructions
 totals: 25
-fl=trace.asm
+fl=<none>
+
+fn=function_0
+3 6
+cfn=function_1
+calls=1 0x200
+4 8
+cfn=function_2
+calls=3 0x300
+5 6
+
+fn=function_1
+20 4
+cfn=function_2
+calls=2 0x300
+21 4
+
+fn=function_2
+30 10
+";
+
+pub const SIMPLE_CALLGRIND_LINE_BY_LINE: &[u8] = b"# callgrind format
+version: 1
+creator: bpf-profile
+events: Instructions
+totals: 25
+fl=/tmp/generate_line_by_line.asm
 
 fn=function_0
 3 1

@@ -40,12 +40,12 @@ pub struct Profile {
     ground: Call,
     functions: Functions,
     dump: Resolver,
-    asm: asm::Source,
+    asm: Option<asm::Source>,
 }
 
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(dump: Resolver) -> Result<Self> {
+    pub fn new(dump: Resolver, asm_path: Option<&Path>) -> Result<Self> {
         let mut functions = Map::new();
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
@@ -53,53 +53,47 @@ impl Profile {
             ground: Call::new(GROUND_ZERO, 0),
             functions,
             dump,
-            asm: asm::Source::new(),
+            asm: asm_path.map(|p| asm::Source::new(p)),
         })
     }
 
     /// Reads the trace and creates the profile data.
-    pub fn create(trace_path: &Path, dump_path: Option<&Path>) -> Result<Self> {
+    pub fn create(
+        trace_path: &Path,
+        dump_path: Option<&Path>,
+        asm_path: Option<&Path>,
+    ) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", trace_path);
-
-        /*let source_path = match dump_path {
-            None => trace_path,
-            Some(dump_path) => dump_path,
-        };
-        let source_filename = source_path
-            .to_str()
-            .ok_or_else(|| Error::Filename(source_path.into()))?
-            .to_string();*/
 
         let dump = dump::read(dump_path)?;
         let reader = BufReader::new(fileutil::open(&trace_path)?);
-        let mut prof = Profile::new(dump)?;
+        let mut prof = Profile::new(dump, asm_path)?;
         parse(reader, &mut prof)?;
 
         Ok(prof)
     }
 
-    /// Writes the generated assembly file.
-    pub fn write_asm(&self, asm_path: &Path) -> Result<()> {
-        let output = fileutil::open_w(asm_path)?;
-        self.asm.write(output, &self.dump)
-    }
-
     /// Writes the profile data in the callgrind file format.
     /// See details of the format in the Valgrind documentation.
     pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
+        if self.asm.is_some() {
+            self.asm.as_ref().unwrap().write(&self.dump)?;
+        }
+
         writeln!(output, "# callgrind format")?;
         writeln!(output, "version: 1")?;
         writeln!(output, "creator: bpf-profile")?;
         writeln!(output, "events: Instructions")?;
         writeln!(output, "totals: {}", self.total_cost)?;
         writeln!(output, "fl={}", asm_fl)?;
-        profile::write_callgrind_functions(output, &self.functions)?;
+        profile::write_callgrind_functions(output, &self.functions, self.asm.is_some())?;
+
         Ok(())
     }
 
     /// Adds instruction to the generated assembly listing.
     fn keep_asm(&mut self, ix: &Instruction) {
-        self.asm.add_instruction(ix);
+        let _ = self.asm.as_mut().map(|a| a.add_instruction(ix));
     }
 
     /// Increments the total cost and the cost of current call.
@@ -195,5 +189,6 @@ pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
             prof.pop_call();
         }
     }
+
     Ok(())
 }

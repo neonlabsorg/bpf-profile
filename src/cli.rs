@@ -31,16 +31,15 @@ pub enum Command {
             parse(from_os_str),
             short,
             long,
-            default_value = &config::DEFAULT_ASM,
-            help = "Path to the generated assembly file"
+            help = "Optional path to the generated assembly file (enables line-by-line profiling)"
         )]
-        asm: PathBuf,
+        asm: Option<PathBuf>,
 
         #[structopt(
             parse(from_os_str),
             short,
             long,
-            help = "Optional path to the input dump file"
+            help = "Optional path to the input dump file (enables resolving names of functions)"
         )]
         dump: Option<PathBuf>,
 

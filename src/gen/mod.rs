@@ -52,7 +52,7 @@ use trace::Profile;
 /// Runs the conversion from BPF trace to a profiler output.
 pub fn run(
     trace_path: &Path,
-    asm_path: &Path,
+    asm_path: Option<&Path>,
     dump_path: Option<&Path>,
     _: &str, // always 'callgrind' currently
     output_path: Option<&Path>,
@@ -61,18 +61,20 @@ pub fn run(
         return Err(Error::TraceFormat);
     }
 
-    let profile = Profile::create(trace_path, dump_path)?;
+    let profile = Profile::create(trace_path, dump_path, asm_path)?;
 
-    profile.write_asm(asm_path)?;
+    let source_filename = match asm_path {
+        None => "<none>",
+        Some(asm_path) => asm_path
+            .to_str()
+            .ok_or_else(|| Error::Filename(asm_path.into()))?,
+    };
 
-    let asm_filename = asm_path
-        .to_str()
-        .ok_or_else(|| Error::Filename(asm_path.into()))?;
     match output_path {
-        None => profile.write_callgrind(io::stdout(), asm_filename),
+        None => profile.write_callgrind(io::stdout(), source_filename),
         Some(output_path) => {
             let output = fileutil::open_w(output_path)?;
-            profile.write_callgrind(BufWriter::new(output), asm_filename)
+            profile.write_callgrind(BufWriter::new(output), source_filename)
         }
     }
 }

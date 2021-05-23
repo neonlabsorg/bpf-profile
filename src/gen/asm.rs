@@ -98,19 +98,26 @@ impl fmt::Display for Instruction {
     }
 }
 
+use std::path::{Path, PathBuf};
+
 /// Represents generated assembly file.
 #[derive(Debug)]
 pub struct Source {
+    output_path: PathBuf,
     ixs: Vec<Instruction>,
 }
 
 use super::dump::Resolver;
+use super::fileutil;
 use std::io::Write;
 
 impl Source {
     /// Creates new instance of Source.
-    pub fn new() -> Self {
-        Source { ixs: Vec::new() }
+    pub fn new(output_path: &Path) -> Self {
+        Source {
+            output_path: output_path.into(),
+            ixs: Vec::new(),
+        }
     }
 
     /// Adds new instruction to the listing.
@@ -130,7 +137,9 @@ impl Source {
     }
 
     /// Writes all lines of the listing to a file.
-    pub fn write(&self, mut output: impl Write, resolver: &Resolver) -> Result<()> {
+    pub fn write(&self, resolver: &Resolver) -> Result<()> {
+        let mut output = fileutil::open_w(&self.output_path)?;
+
         for i in 0..self.ixs.len() {
             let ix = &self.ixs[i];
             if i == 0 && ix.is_empty() {
@@ -150,6 +159,7 @@ impl Source {
             }
             writeln!(output, "{}", ix)?;
         }
+
         output.flush()?;
         Ok(())
     }
