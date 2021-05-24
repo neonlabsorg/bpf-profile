@@ -28,7 +28,8 @@ pub struct Resolver {
 const PREFIX_OF_UNRESOLVED: &str = "function_";
 
 impl Resolver {
-    /// Returns new instance of the Resolver.
+    /// Reads the dump file to collect function names.
+    /// Returns non-trivial (with real function names) instance of the Resolver.
     fn read(filename: &Path) -> Result<Self> {
         let mut resolver = Resolver::default();
         let reader = buf::open(filename)?;
@@ -52,7 +53,7 @@ impl Resolver {
         func_name
     }
 
-    /// Takes a program counter and returns name of function which begins with it.
+    /// Takes a program counter and returns name of function which begins with it (if any).
     pub fn resolve_by_first_pc(&self, pc: ProgramCounter) -> Option<String> {
         let func_index = self.index_function_by_first_pc.get(&pc);
         func_index.map(|i| self.functions[*i].clone())

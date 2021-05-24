@@ -2,7 +2,6 @@
 //! Implements parsing of the trace file and generating the profile.
 
 use super::{buf, Error, Result};
-use crate::config::{Cost, Map, ProgramCounter};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::{BufRead, Write};
@@ -31,7 +30,7 @@ pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
 use super::asm::{self, Instruction};
 use super::profile::{self, Call, Function, Functions};
 use super::resolver::{self, Resolver};
-use crate::config::GROUND_ZERO;
+use crate::config::{Cost, Map, ProgramCounter, GROUND_ZERO};
 
 /// Represents the profile.
 #[derive(Debug)]

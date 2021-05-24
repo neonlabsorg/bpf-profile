@@ -180,6 +180,11 @@ pub fn write_callgrind_functions(
     functions: &Functions,
     line_by_line_profile_enabled: bool,
 ) -> Result<()> {
+    // Collapse possible calls of functions from different pcs
+    // in case line_by_line_profile_enabled == false
+    let mut addresses = Map::new();
+
+    // Collect (caller-pc, function-address) => (number-of-calls, inclusive-cost)
     let mut statistics = Map::new();
 
     for (a, f) in functions {
@@ -200,8 +205,8 @@ pub fn write_callgrind_functions(
         }
 
         // Collect statistics of callees
+        addresses.clear();
         statistics.clear();
-        let mut addresses = Map::new();
         for c in &f.calls {
             let key = if line_by_line_profile_enabled {
                 (c.caller_pc, c.address)

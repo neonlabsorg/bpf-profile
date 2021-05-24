@@ -162,7 +162,7 @@ fn write_assembly_from_trace(
         }
 
         let comment = match resolver.resolve_by_first_pc(ix.pc()) {
-            None => "".to_owned(),
+            None => String::default(),
             Some(name) => format!("\t; {}", &name),
         };
 
