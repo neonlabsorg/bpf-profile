@@ -2,7 +2,6 @@
 
 mod dump;
 mod fileutil;
-mod profile;
 mod trace;
 
 #[cfg(test)]
@@ -20,6 +19,8 @@ pub enum Error {
     OpenFile(#[source] std::io::Error, PathBuf),
     #[error("Cannot read line '{1}': {0}")]
     ReadLine(#[source] std::io::Error, String),
+    #[error("Input/output error")]
+    Io(#[from] std::io::Error),
 
     #[error("Unsupported format of dump file")]
     DumpFormat,
@@ -36,16 +37,13 @@ pub enum Error {
     TraceNotCall(String),
     #[error("Cannot parse trace '{0}' at line {1}")]
     TraceParsing(String, usize),
-
-    #[error("Input/output error")]
-    Io(#[from] std::io::Error),
 }
 
 /// Represents results.
 pub type Result<T> = std::result::Result<T, Error>;
 
-use profile::Profile;
 use std::io::{BufReader, BufWriter};
+use trace::Profile;
 
 /// Runs the conversion from trace to a profiler output.
 pub fn run(

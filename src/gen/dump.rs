@@ -41,8 +41,8 @@ impl Resolver {
         tracing::debug!("Resolver.resolve(0x{:x}, {})", &address, &first_pc);
         assert_ne!(address, GROUND_ZERO);
 
-        #[allow(clippy::map_entry)]
-        if !self.index_function_by_address.contains_key(&address) {
+        let found = self.index_function_by_address.contains_key(&address);
+        if !found {
             if self.contains_function_with_first_pc(first_pc) {
                 // There can be multiple copies of one function with different addresses
                 let func_index = self.index_function_by_first_pc[&first_pc];
@@ -53,8 +53,6 @@ impl Resolver {
                 self.unresolved_counter += 1;
                 let func_index = self.update_first_pc_index(&unresolved_func_name, first_pc);
                 self.index_function_by_address.insert(address, func_index);
-                tracing::debug!("Resolver.resolve returns {})", &unresolved_func_name);
-                return unresolved_func_name;
             }
         }
 
