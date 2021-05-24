@@ -1,12 +1,15 @@
 //! bpf-profile generate command implementation.
 
-mod dump;
-mod fileutil;
+mod asm;
+mod buf;
+mod profile;
+mod resolver;
 mod trace;
 
 #[cfg(test)]
 mod tests;
 
+use std::io;
 use std::path::PathBuf;
 
 /// Represents errors of the converter.
@@ -16,11 +19,11 @@ pub enum Error {
     Filename(PathBuf),
 
     #[error("Cannot open file '{1}': {0}")]
-    OpenFile(#[source] std::io::Error, PathBuf),
+    OpenFile(#[source] io::Error, PathBuf),
     #[error("Cannot read line '{1}': {0}")]
-    ReadLine(#[source] std::io::Error, String),
-    #[error("Input/output error")]
-    Io(#[from] std::io::Error),
+    ReadLine(#[source] io::Error, String),
+    #[error("Input/output error: {0}")]
+    Io(#[from] io::Error),
 
     #[error("Unsupported format of dump file")]
     DumpFormat,
@@ -33,37 +36,45 @@ pub enum Error {
     TraceFormat,
     #[error("Skipped input")]
     TraceSkipped,
-    #[error("Instruction is not a call: '{0}'")]
-    TraceNotCall(String),
-    #[error("Cannot parse trace '{0}' at line {1}")]
+    #[error("Instruction at line {1} is not a call: '{0}'")]
+    TraceNotCall(String, usize),
+    #[error("Cannot parse trace instruction '{0}' at line {1}")]
     TraceParsing(String, usize),
 }
 
 /// Represents results.
 pub type Result<T> = std::result::Result<T, Error>;
 
-use std::io::{BufReader, BufWriter};
+use crate::config::DEFAULT_ASM;
+use std::path::Path;
 use trace::Profile;
 
-/// Runs the conversion from trace to a profiler output.
+/// Runs the conversion from BPF trace to a profiler output.
 pub fn run(
-    trace_file: PathBuf,
-    dump_file: Option<PathBuf>,
-    output_file: Option<PathBuf>,
-    _: String, // always 'callgrind' currently
+    trace_path: &Path,
+    asm_path: Option<&Path>,
+    dump_path: Option<&Path>,
+    _: &str, // always 'callgrind' currently
+    output_path: Option<&Path>,
 ) -> Result<()> {
-    if !trace::contains_standard_header(BufReader::new(fileutil::open(&trace_file)?))? {
+    if !trace::contains_standard_header(buf::open(&trace_path)?)? {
         return Err(Error::TraceFormat);
     }
 
-    let dump = dump::read(dump_file)?;
-    let profile = Profile::create(trace_file, dump)?;
+    let profile = Profile::create(trace_path, dump_path, asm_path)?;
 
-    match output_file {
-        None => profile.write_callgrind(std::io::stdout()),
-        Some(output_file) => {
-            let output = fileutil::open_w(&output_file)?;
-            profile.write_callgrind(BufWriter::new(output))
+    let source_filename = match asm_path {
+        None => DEFAULT_ASM,
+        Some(asm_path) => asm_path
+            .to_str()
+            .ok_or_else(|| Error::Filename(asm_path.into()))?,
+    };
+
+    match output_path {
+        None => profile.write_callgrind(io::stdout(), source_filename),
+        Some(output_path) => {
+            let output = buf::open_w(output_path)?;
+            profile.write_callgrind(output, source_filename)
         }
     }
 }

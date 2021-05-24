@@ -1,4 +1,4 @@
-# BPF trace-to-profile file converter
+## BPF trace to profile converter
 
 This program reads a trace file that contains trace output from the BPF VM,
 and generates a profile for tools like `callgrind_annotate` or `QCacheGrind`.
@@ -17,3 +17,6 @@ When the trace file is ready, use the following command:
 ```bpf-profile generate <trace file path> -d <dump file path> -o callgrind.out```
 which should produce new file `callgrind.out` containing the profile data.
 It can be read by any standard tool for analysis.
+
+This program expects input files created with *Solana 1.6.x*. Other versions
+of *Solana* may generate incompatible data.

@@ -3,8 +3,9 @@
 trace=token.trace
 dump=token.dump
 out=/tmp/token.profile
+asm=/tmp/token.asm
 
-cargo run --release -- generate examples/$trace --dump examples/$dump --output $out
+cargo run --release -- generate examples/$trace --dump examples/$dump --output $out --asm $asm
 result=$?
 if [ $result -ne 0 ]; then
     exit $result
