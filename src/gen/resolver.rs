@@ -1,7 +1,8 @@
 //! bpf-profile dump module.
 
-use super::{buf, Error, Result};
+use crate::buf;
 use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
+use crate::error::{Error, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::BufRead;

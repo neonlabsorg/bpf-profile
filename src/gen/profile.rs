@@ -71,7 +71,7 @@ pub struct Call {
 }
 
 use super::asm::Instruction;
-use super::{Error, Result};
+use crate::error::{Error, Result};
 
 impl Call {
     /// Creates new call object.

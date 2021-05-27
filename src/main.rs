@@ -16,9 +16,12 @@
 #![forbid(unsafe_code)]
 #![deny(warnings)]
 
+mod buf;
 mod cli;
 mod config;
+mod error;
 mod gen;
+mod trace;
 
 fn main() {
     init_logger();
@@ -36,8 +39,10 @@ fn init_logger() {
     tracing_subscriber::fmt::init();
 }
 
+use crate::error::Result;
+
 /// Dispatches CLI commands.
-fn execute(app: cli::Application) -> gen::Result<()> {
+fn execute(app: cli::Application) -> Result<()> {
     match app.cmd {
         cli::Command::Generate {
             trace,
@@ -53,6 +58,9 @@ fn execute(app: cli::Application) -> gen::Result<()> {
                 &format,
                 output.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>
             )?;
+        }
+        cli::Command::Trace { trace } => {
+            trace::run(&trace)?;
         }
     }
 

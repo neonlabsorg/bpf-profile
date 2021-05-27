@@ -1,7 +1,8 @@
 //! bpf-profile trace module.
 //! Implements parsing of the trace file and generating the profile.
 
-use super::{buf, Error, Result};
+use crate::buf;
+use crate::error::{Error, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::{BufRead, Write};

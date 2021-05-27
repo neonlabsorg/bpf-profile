@@ -60,6 +60,12 @@ pub enum Command {
         )]
         output: Option<PathBuf>,
     },
+
+    #[structopt(about = "Shows trace of functions")]
+    Trace {
+        #[structopt(parse(from_os_str), help = "Path to the input trace file")]
+        trace: PathBuf,
+    },
 }
 
 /// Constructs an instance of the Application.

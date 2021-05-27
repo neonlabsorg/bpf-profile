@@ -1,6 +1,6 @@
 //! bpf-profile file buffered utilities module.
 
-use super::{Error, Result};
+use crate::error::{Error, Result};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;

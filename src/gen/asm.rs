@@ -9,8 +9,8 @@ pub struct Instruction {
     text: String,
 }
 
-use super::{Error, Result};
 use crate::config::Address;
+use crate::error::{Error, Result};
 use lazy_static::lazy_static;
 use regex::Regex;
 
@@ -107,8 +107,8 @@ pub struct Source {
     ixs: Vec<Instruction>,
 }
 
-use super::buf;
 use super::resolver::Resolver;
+use crate::buf;
 use std::io::Write;
 
 impl Source {
