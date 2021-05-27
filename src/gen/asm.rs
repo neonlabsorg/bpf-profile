@@ -11,8 +11,8 @@ pub struct Source {
 }
 
 use crate::error::Result;
-use crate::filebuf;
 use crate::resolver::Resolver;
+use crate::{filebuf, global};
 use std::io::Write;
 
 impl Source {
@@ -42,6 +42,9 @@ impl Source {
 
     /// Writes all lines of the listing to a file.
     pub fn write(&self, resolver: &Resolver) -> Result<()> {
+        if global::verbose() {
+            tracing::info!("Writing assembly file...")
+        }
         let output = filebuf::open_w(&self.output_path)?;
         if resolver.is_default() {
             write_assembly_from_trace(output, &self.ixs, resolver)?;

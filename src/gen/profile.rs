@@ -172,6 +172,7 @@ impl Call {
     }
 }
 
+use crate::global;
 use std::io::Write;
 
 /// Writes information about calls of functions and their costs.
@@ -180,6 +181,10 @@ pub fn write_callgrind_functions(
     functions: &Functions,
     line_by_line_profile_enabled: bool,
 ) -> Result<()> {
+    if global::verbose() {
+        tracing::info!("Writing callgrind profile...")
+    }
+
     // Collapse possible calls of functions from different pcs
     // in case line_by_line_profile_enabled == false
     let mut addresses = Map::new();

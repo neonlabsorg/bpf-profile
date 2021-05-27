@@ -5,8 +5,8 @@ use super::asm;
 use super::profile::{self, Call, Function, Functions};
 use crate::config::{Cost, Map, ProgramCounter, GROUND_ZERO};
 use crate::error::{Error, Result};
-use crate::filebuf;
 use crate::resolver::{self, Resolver};
+use crate::{filebuf, global};
 use std::io::{BufRead, Write};
 use std::path::Path;
 
@@ -113,6 +113,10 @@ impl Profile {
 
 /// Parses the trace file line by line building the Profile instance.
 pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
+    if global::verbose() {
+        tracing::info!("Parsing trace file, creating profile...")
+    }
+
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;

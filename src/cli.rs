@@ -16,13 +16,16 @@ pub struct Application {
      )]
     pub config: PathBuf,
 
+    #[structopt(short, long, help = "Shows more information")]
+    pub verbose: bool,
+
     #[structopt(subcommand)]
     pub cmd: Command,
 }
 
 #[derive(StructOpt)]
 pub enum Command {
-    #[structopt(about = "Shows calls of functions")]
+    #[structopt(about = "Prints functions in order of calls")]
     Calls {
         #[structopt(parse(from_os_str), help = "Path to the input trace file")]
         trace: PathBuf,

@@ -1,7 +1,7 @@
 //! bpf-profile calls command implementation.
 
 use crate::error::{Error, Result};
-use crate::filebuf;
+use crate::{filebuf, global};
 use std::path::Path;
 
 /// Reads the trace input file and prints functions in order of calls.
@@ -20,7 +20,7 @@ pub fn run(trace_path: &Path, dump_path: Option<&Path>, tab: usize) -> Result<()
 
     let depth_width = max_depth.to_string().len();
     let reader = filebuf::open(&trace_path)?;
-    show_calls(reader, &resolv, depth_width, tab)?;
+    trace_calls(reader, &resolv, depth_width, tab)?;
 
     Ok(())
 }
@@ -32,6 +32,10 @@ use std::io::BufRead;
 /// Parses the trace file line by line updating the resolver.
 /// Returns maximal depth of enclosed function calls.
 fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<usize> {
+    if global::verbose() {
+        tracing::info!("First pass of trace: updating resolver...")
+    }
+
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut ix: Instruction;
@@ -83,12 +87,16 @@ fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<us
 }
 
 /// Parses the trace file line by line printing calls.
-fn show_calls(
+fn trace_calls(
     mut reader: impl BufRead,
     resolv: &Resolver,
     depth_width: usize,
     tab: usize,
 ) -> Result<()> {
+    if global::verbose() {
+        tracing::info!("Second pass of trace: dumping functions...")
+    }
+
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut ix: Instruction;

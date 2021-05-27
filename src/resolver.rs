@@ -2,7 +2,7 @@
 
 use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
 use crate::error::{Error, Result};
-use crate::filebuf;
+use crate::{filebuf, global};
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::BufRead;
@@ -32,6 +32,9 @@ impl Resolver {
     /// Reads the dump file to collect function names.
     /// Returns non-trivial (with real function names) instance of the Resolver.
     fn read(filename: &Path) -> Result<Self> {
+        if global::verbose() {
+            tracing::info!("Reading dump file, creating resolver...")
+        }
         let mut resolver = Resolver::default();
         let reader = filebuf::open(filename)?;
         parse_dump_file(reader, &mut resolver)?;

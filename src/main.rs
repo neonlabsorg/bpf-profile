@@ -23,6 +23,7 @@ mod config;
 mod error;
 mod filebuf;
 mod gen;
+mod global;
 mod resolver;
 mod trace;
 
@@ -49,6 +50,8 @@ use crate::error::Result;
 
 /// Dispatches CLI commands.
 fn execute(app: cli::Application) -> Result<()> {
+    global::set_verbose(app.verbose);
+
     match app.cmd {
         cli::Command::Calls { trace, dump, tab } => {
             calls::run(
