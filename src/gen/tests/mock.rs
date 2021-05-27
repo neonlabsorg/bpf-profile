@@ -1,4 +1,4 @@
-//! bpf-profile generator mock module.
+//! bpf-profile-generate mock module.
 
 pub const SIMPLE_INPUT: &[u8] = b"
 # The input contains 3 functions with addresses 0x100, 0x200, and 0x300.

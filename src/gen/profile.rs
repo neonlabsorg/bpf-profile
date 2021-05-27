@@ -1,4 +1,4 @@
-//! bpf-profile profile module.
+//! bpf-profile-generate profile module.
 
 use crate::config::{Address, Cost, Map, ProgramCounter};
 use std::collections::BTreeMap;

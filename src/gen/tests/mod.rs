@@ -1,9 +1,8 @@
-//! bpf-profile generator tests module.
+//! bpf-profile-generate tests module.
 
 mod mock;
 
-use crate::config;
-use crate::gen::{resolver, trace};
+use crate::{config, gen::trace, resolver};
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;

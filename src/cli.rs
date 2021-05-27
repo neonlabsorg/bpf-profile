@@ -35,7 +35,7 @@ pub enum Command {
         )]
         dump: Option<PathBuf>,
 
-        #[structopt(short, long, default_value = "4", help = "Indentation size")]
+        #[structopt(short, long, default_value = "2", help = "Indentation size")]
         tab: usize,
     },
 

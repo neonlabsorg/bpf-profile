@@ -1,4 +1,4 @@
-//! bpf-profile asm module.
+//! bpf-profile-generate asm module.
 
 use crate::bpf::Instruction;
 use std::path::{Path, PathBuf};

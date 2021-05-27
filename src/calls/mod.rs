@@ -10,14 +10,17 @@ pub fn run(trace_path: &Path, dump_path: Option<&Path>, tab: usize) -> Result<()
         return Err(Error::TraceFormat);
     }
 
+    let max_depth;
     let mut resolv = crate::resolver::read(dump_path)?;
+
     {
         let reader = filebuf::open(&trace_path)?;
-        update_resolver(reader, &mut resolv)?;
+        max_depth = update_resolver(reader, &mut resolv)?;
     }
 
+    let depth_width = max_depth.to_string().len();
     let reader = filebuf::open(&trace_path)?;
-    parse(reader, &resolv, tab)?;
+    show_calls(reader, &resolv, depth_width, tab)?;
 
     Ok(())
 }
@@ -27,11 +30,14 @@ use crate::resolver::Resolver;
 use std::io::BufRead;
 
 /// Parses the trace file line by line updating the resolver.
-fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()> {
+/// Returns maximal depth of enclosed function calls.
+fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<usize> {
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut ix: Instruction;
     let mut lc = 0_usize;
+    let mut depth = 0_usize;
+    let mut max_depth = 0_usize;
 
     while bytes_read != 0 {
         if line.is_empty() {
@@ -48,6 +54,9 @@ fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()
         ix = ixr?;
 
         if !ix.is_call() {
+            if ix.is_exit() {
+                depth -= 1;
+            }
             line.clear();
             continue;
         }
@@ -59,6 +68,8 @@ fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()
         // ...
         while ix.is_call() {
             let address = ix.extract_call_target(lc)?;
+            depth += 1;
+            max_depth = std::cmp::max(depth, max_depth);
             // Read next line — the first instruction of the call
             bytes_read = filebuf::read_line(&mut reader, &mut line)?;
             lc += 1;
@@ -68,16 +79,21 @@ fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()
         // Keep here the last non-call line to process further
     }
 
-    Ok(())
+    Ok(max_depth)
 }
 
 /// Parses the trace file line by line printing calls.
-fn parse(mut reader: impl BufRead, resolv: &Resolver, tab: usize) -> Result<()> {
-    let mut depth = 0_usize;
+fn show_calls(
+    mut reader: impl BufRead,
+    resolv: &Resolver,
+    depth_width: usize,
+    tab: usize,
+) -> Result<()> {
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut ix: Instruction;
     let mut lc = 0_usize;
+    let mut depth = 0_usize;
 
     while bytes_read != 0 {
         if line.is_empty() {
@@ -110,9 +126,11 @@ fn parse(mut reader: impl BufRead, resolv: &Resolver, tab: usize) -> Result<()> 
             let address = ix.extract_call_target(lc)?;
             let name = resolv.resolve_by_address(address);
             println!(
-                "{:indent$}{}",
+                "[{:width$}] {:indent$}{}",
+                depth,
                 String::default(),
                 &name,
+                width = depth_width,
                 indent = depth * tab
             );
             depth += 1;
