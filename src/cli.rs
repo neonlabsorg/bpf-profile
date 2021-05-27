@@ -22,7 +22,24 @@ pub struct Application {
 
 #[derive(StructOpt)]
 pub enum Command {
-    #[structopt(about = "Generates performance profile from BPF trace")]
+    #[structopt(about = "Shows calls of functions")]
+    Calls {
+        #[structopt(parse(from_os_str), help = "Path to the input trace file")]
+        trace: PathBuf,
+
+        #[structopt(
+            parse(from_os_str),
+            short,
+            long,
+            help = "Optional path to the input dump file (enables resolving names of functions)"
+        )]
+        dump: Option<PathBuf>,
+
+        #[structopt(short, long, default_value = "4", help = "Indentation size")]
+        tab: usize,
+    },
+
+    #[structopt(about = "Generates performance profile")]
     Generate {
         #[structopt(parse(from_os_str), help = "Path to the input trace file")]
         trace: PathBuf,
@@ -59,12 +76,6 @@ pub enum Command {
             help = "Path to the generated profile [default: stdout]"
         )]
         output: Option<PathBuf>,
-    },
-
-    #[structopt(about = "Shows trace of functions")]
-    Trace {
-        #[structopt(parse(from_os_str), help = "Path to the input trace file")]
-        trace: PathBuf,
     },
 }
 

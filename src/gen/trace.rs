@@ -1,37 +1,14 @@
-//! bpf-profile trace module.
+//! bpf-profile-generate trace module.
 //! Implements parsing of the trace file and generating the profile.
 
-use crate::buf;
+use super::asm;
+use super::profile::{self, Call, Function, Functions};
+use crate::config::{Cost, Map, ProgramCounter, GROUND_ZERO};
 use crate::error::{Error, Result};
-use lazy_static::lazy_static;
-use regex::Regex;
+use crate::filebuf;
+use crate::resolver::{self, Resolver};
 use std::io::{BufRead, Write};
 use std::path::Path;
-
-/// Checks the trace file contains expected header line.
-pub fn contains_standard_header(mut reader: impl BufRead) -> Result<bool> {
-    lazy_static! {
-        static ref TRACE_HEADER: Regex =
-            Regex::new(r"\[.+\s+TRACE\s+.+BPF Program Instruction Trace").expect("Invalid regex");
-    }
-
-    let mut line = String::with_capacity(512);
-    let mut bytes_read = usize::MAX;
-
-    while bytes_read != 0 {
-        bytes_read = buf::read_line(&mut reader, &mut line)?;
-        if TRACE_HEADER.is_match(&line) {
-            return Ok(true);
-        }
-    }
-
-    Ok(false)
-}
-
-use super::asm::{self, Instruction};
-use super::profile::{self, Call, Function, Functions};
-use super::resolver::{self, Resolver};
-use crate::config::{Cost, Map, ProgramCounter, GROUND_ZERO};
 
 /// Represents the profile.
 #[derive(Debug)]
@@ -42,6 +19,8 @@ pub struct Profile {
     resolv: Resolver,
     asm: Option<asm::Source>,
 }
+
+use crate::bpf::Instruction;
 
 impl Profile {
     /// Creates the initial instance of profile.
@@ -66,7 +45,7 @@ impl Profile {
         tracing::debug!("Profile.create {:?}", trace_path);
 
         let resolv = resolver::read(dump_path)?;
-        let reader = buf::open(&trace_path)?;
+        let reader = filebuf::open(&trace_path)?;
         let mut prof = Profile::new(resolv, asm_path)?;
         parse(reader, &mut prof)?;
 
@@ -141,7 +120,7 @@ pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
 
     while bytes_read != 0 {
         if line.is_empty() {
-            bytes_read = buf::read_line(&mut reader, &mut line)?;
+            bytes_read = filebuf::read_line(&mut reader, &mut line)?;
             lc += 1;
         }
 
@@ -177,7 +156,7 @@ pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
             prof.increment_cost(ix.pc());
             let call = Call::from(&ix, lc)?;
             // Read next line — the first instruction of the call
-            bytes_read = buf::read_line(&mut reader, &mut line)?;
+            bytes_read = filebuf::read_line(&mut reader, &mut line)?;
             lc += 1;
             ix = Instruction::parse(&line)?;
             prof.push_call(call, ix.pc());

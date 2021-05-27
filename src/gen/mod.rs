@@ -2,17 +2,15 @@
 
 mod asm;
 mod profile;
-mod resolver;
 mod trace;
 
 #[cfg(test)]
 mod tests;
 
-use std::io;
-
-use crate::buf;
 use crate::config::DEFAULT_ASM;
 use crate::error::{Error, Result};
+use crate::filebuf;
+use std::io;
 use std::path::Path;
 use trace::Profile;
 
@@ -24,7 +22,7 @@ pub fn run(
     _: &str, // always 'callgrind' currently
     output_path: Option<&Path>,
 ) -> Result<()> {
-    if !trace::contains_standard_header(buf::open(&trace_path)?)? {
+    if !crate::trace::contains_standard_header(filebuf::open(&trace_path)?)? {
         return Err(Error::TraceFormat);
     }
 
@@ -40,7 +38,7 @@ pub fn run(
     match output_path {
         None => profile.write_callgrind(io::stdout(), source_filename),
         Some(output_path) => {
-            let output = buf::open_w(output_path)?;
+            let output = filebuf::open_w(output_path)?;
             profile.write_callgrind(output, source_filename)
         }
     }

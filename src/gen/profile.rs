@@ -15,8 +15,8 @@ pub struct Function {
     calls: Vec<Call>,
 }
 
-use super::resolver::Resolver;
 use crate::config::GROUND_ZERO;
+use crate::resolver::Resolver;
 
 impl Function {
     /// Creates initial function object which stores total cost of entire program.
@@ -70,7 +70,7 @@ pub struct Call {
     depth: usize,
 }
 
-use super::asm::Instruction;
+use crate::bpf::Instruction;
 use crate::error::{Error, Result};
 
 impl Call {

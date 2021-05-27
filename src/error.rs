@@ -16,14 +16,14 @@ pub enum Error {
     #[error("Input/output error: {0}")]
     Io(#[from] io::Error),
 
-    #[error("Unsupported format of dump file")]
+    #[error("Unsupported format of dump file: should contain standard header")]
     DumpFormat,
     #[error("Dump file without disassembly")]
     DumpFormatNoDisasm,
     #[error("Cannot parse instruction '{0}' of a function at line '{1}'")]
     DumpParsing(String, usize),
 
-    #[error("Unsupported format of trace file")]
+    #[error("Unsupported format of trace file: should contain standard header")]
     TraceFormat,
     #[error("Skipped input")]
     TraceSkipped,

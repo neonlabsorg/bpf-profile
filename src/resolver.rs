@@ -1,8 +1,8 @@
-//! bpf-profile dump module.
+//! bpf-profile resolver module.
 
-use crate::buf;
 use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
 use crate::error::{Error, Result};
+use crate::filebuf;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::io::BufRead;
@@ -33,7 +33,7 @@ impl Resolver {
     /// Returns non-trivial (with real function names) instance of the Resolver.
     fn read(filename: &Path) -> Result<Self> {
         let mut resolver = Resolver::default();
-        let reader = buf::open(filename)?;
+        let reader = filebuf::open(filename)?;
         parse_dump_file(reader, &mut resolver)?;
         resolver.not_default = true;
         Ok(resolver)
@@ -116,7 +116,7 @@ fn parse_dump_file(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()
     let mut was_header = false;
     let mut was_disasm = false;
     while bytes_read != 0 {
-        bytes_read = buf::read_line(&mut reader, &mut line)?;
+        bytes_read = filebuf::read_line(&mut reader, &mut line)?;
         lc += 1;
         if line.starts_with(HEADER) {
             was_header = true;
@@ -143,13 +143,13 @@ fn parse_dump_file(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()
 
     // Read functions and their instructions
     while bytes_read != 0 {
-        bytes_read = buf::read_line(&mut reader, &mut line)?;
+        bytes_read = filebuf::read_line(&mut reader, &mut line)?;
         lc += 1;
         if let Some(caps) = FUNC_HEADER.captures(&line) {
             let name = caps[1].to_string();
             if !name.starts_with("LBB") {
                 // Get the very first instruction of the function
-                bytes_read = buf::read_line(&mut reader, &mut line)?;
+                bytes_read = filebuf::read_line(&mut reader, &mut line)?;
                 lc += 1;
                 if let Some(caps) = FUNC_INSTRUCTION.captures(&line) {
                     let pc = caps[1]
