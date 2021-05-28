@@ -11,16 +11,16 @@ pub fn run(trace_path: &Path, dump_path: Option<&Path>, tab: usize) -> Result<()
     }
 
     let max_depth;
-    let mut resolv = crate::resolver::read(dump_path)?;
+    let mut resv = crate::resolver::read(dump_path)?;
 
     {
         let reader = filebuf::open(&trace_path)?;
-        max_depth = update_resolver(reader, &mut resolv)?;
+        max_depth = update_resolver(reader, &mut resv)?;
     }
 
     let depth_width = max_depth.to_string().len();
     let reader = filebuf::open(&trace_path)?;
-    trace_calls(reader, &resolv, depth_width, tab)?;
+    trace_calls(reader, &resv, depth_width, tab)?;
 
     Ok(())
 }
@@ -31,7 +31,7 @@ use std::io::BufRead;
 
 /// Parses the trace file line by line updating the resolver.
 /// Returns maximal depth of enclosed function calls.
-fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<usize> {
+fn update_resolver(mut reader: impl BufRead, resv: &mut Resolver) -> Result<usize> {
     if global::verbose() {
         tracing::info!("First pass of trace: updating resolver...")
     }
@@ -78,7 +78,7 @@ fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<us
             bytes_read = filebuf::read_line(&mut reader, &mut line)?;
             lc += 1;
             ix = Instruction::parse(&line)?;
-            resolv.update(address, ix.pc());
+            resv.update(address, ix.pc());
         }
         // Keep here the last non-call line to process further
     }
@@ -89,7 +89,7 @@ fn update_resolver(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<us
 /// Parses the trace file line by line printing calls.
 fn trace_calls(
     mut reader: impl BufRead,
-    resolv: &Resolver,
+    resv: &Resolver,
     depth_width: usize,
     tab: usize,
 ) -> Result<()> {
@@ -132,7 +132,7 @@ fn trace_calls(
         // ...
         while ix.is_call() {
             let address = ix.extract_call_target(lc)?;
-            let name = resolv.resolve_by_address(address);
+            let name = resv.resolve_by_address(address);
             println!(
                 "[{:width$}] {:indent$}{}",
                 depth,

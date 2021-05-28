@@ -3,16 +3,14 @@
 use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
 use crate::error::{Error, Result};
 use crate::{filebuf, global};
-use lazy_static::lazy_static;
-use regex::Regex;
 use std::io::BufRead;
 use std::path::Path;
 
 /// Reads the dump file (if any) and returns a dump representation.
-pub fn read(filename: Option<&Path>) -> Result<Resolver> {
-    match filename {
+pub fn read(filepath: Option<&Path>) -> Result<Resolver> {
+    match filepath {
         None => Ok(Resolver::default()),
-        Some(filename) => Resolver::read(filename),
+        Some(path) => Resolver::read(path),
     }
 }
 
@@ -29,17 +27,17 @@ pub struct Resolver {
 const PREFIX_OF_UNRESOLVED: &str = "function_";
 
 impl Resolver {
-    /// Reads the dump file to collect function names.
+    /// Reads the dump file to collect function names and pretty assembly.
     /// Returns non-trivial (with real function names) instance of the Resolver.
-    fn read(filename: &Path) -> Result<Self> {
+    fn read(filepath: &Path) -> Result<Self> {
         if global::verbose() {
             tracing::info!("Reading dump file, creating resolver...")
         }
-        let mut resolver = Resolver::default();
-        let reader = filebuf::open(filename)?;
-        parse_dump_file(reader, &mut resolver)?;
-        resolver.not_default = true;
-        Ok(resolver)
+        let mut resv = Resolver::default();
+        let reader = filebuf::open(filepath)?;
+        parse_dump_file(reader, &mut resv)?;
+        resv.not_default = true;
+        Ok(resv)
     }
 
     /// Checks if resolver was generated from nothing (default) or from the dump file.
@@ -106,11 +104,14 @@ impl Resolver {
     }
 }
 
+use lazy_static::lazy_static;
+use regex::Regex;
+
 const HEADER: &str = "ELF Header";
 const DISASM_HEADER: &str = "Disassembly of section .text";
 
 /// Parses the dump file building the Resolver instance.
-fn parse_dump_file(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()> {
+fn parse_dump_file(mut reader: impl BufRead, resv: &mut Resolver) -> Result<()> {
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
@@ -158,8 +159,8 @@ fn parse_dump_file(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()
                     let pc = caps[1]
                         .parse::<ProgramCounter>()
                         .expect("Cannot parse program counter");
-                    if !resolv.contains_function_with_first_pc(pc) {
-                        resolv.update_first_pc_index(&name, pc);
+                    if !resv.contains_function_with_first_pc(pc) {
+                        resv.update_first_pc_index(&name, pc);
                     }
                 } else {
                     return Err(Error::DumpParsing(line, lc));

@@ -16,7 +16,7 @@ pub struct Profile {
     total_cost: Cost,
     ground: Call,
     functions: Functions,
-    resolv: Resolver,
+    resolver: Resolver,
     asm: Option<asm::Source>,
 }
 
@@ -24,14 +24,14 @@ use crate::bpf::Instruction;
 
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(resolv: Resolver, asm_path: Option<&Path>) -> Result<Self> {
+    pub fn new(resv: Resolver, asm_path: Option<&Path>) -> Result<Self> {
         let mut functions = Map::new();
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
             total_cost: 0,
             ground: Call::new(GROUND_ZERO, 0),
             functions,
-            resolv,
+            resolver: resv,
             asm: asm_path.map(|p| asm::Source::new(p)),
         })
     }
@@ -44,9 +44,9 @@ impl Profile {
     ) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", trace_path);
 
-        let resolv = resolver::read(dump_path)?;
+        let resv = resolver::read(dump_path)?;
         let reader = filebuf::open(&trace_path)?;
-        let mut prof = Profile::new(resolv, asm_path)?;
+        let mut prof = Profile::new(resv, asm_path)?;
         parse(reader, &mut prof)?;
 
         Ok(prof)
@@ -57,7 +57,7 @@ impl Profile {
     pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
         if self.asm.is_some() {
             let asm = self.asm.as_ref().unwrap();
-            asm.write(&self.resolv)?;
+            asm.write(&self.resolver)?;
         }
 
         writeln!(output, "# callgrind format")?;
@@ -92,7 +92,7 @@ impl Profile {
         #[allow(clippy::map_entry)]
         if !self.functions.contains_key(&address) {
             tracing::debug!("Add function to the registry: {}", address);
-            let func = Function::new(address, first_pc, &mut self.resolv);
+            let func = Function::new(address, first_pc, &mut self.resolver);
             self.functions.insert(address, func);
         }
     }
