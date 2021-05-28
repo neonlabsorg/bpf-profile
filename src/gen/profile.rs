@@ -1,4 +1,4 @@
-//! bpf-profile profile module.
+//! bpf-profile-generate profile module.
 
 use crate::config::{Address, Cost, Map, ProgramCounter};
 use std::collections::BTreeMap;
@@ -15,8 +15,8 @@ pub struct Function {
     calls: Vec<Call>,
 }
 
-use super::resolver::Resolver;
 use crate::config::GROUND_ZERO;
+use crate::resolver::Resolver;
 
 impl Function {
     /// Creates initial function object which stores total cost of entire program.
@@ -70,8 +70,8 @@ pub struct Call {
     depth: usize,
 }
 
-use super::asm::Instruction;
-use super::{Error, Result};
+use crate::bpf::Instruction;
+use crate::error::{Error, Result};
 
 impl Call {
     /// Creates new call object.
@@ -172,6 +172,7 @@ impl Call {
     }
 }
 
+use crate::global;
 use std::io::Write;
 
 /// Writes information about calls of functions and their costs.
@@ -180,6 +181,10 @@ pub fn write_callgrind_functions(
     functions: &Functions,
     line_by_line_profile_enabled: bool,
 ) -> Result<()> {
+    if global::verbose() {
+        tracing::info!("Writing callgrind profile...")
+    }
+
     // Collapse possible calls of functions from different pcs
     // in case line_by_line_profile_enabled == false
     let mut addresses = Map::new();

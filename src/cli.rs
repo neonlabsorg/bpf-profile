@@ -16,13 +16,33 @@ pub struct Application {
      )]
     pub config: PathBuf,
 
+    #[structopt(short, long, help = "Shows more information")]
+    pub verbose: bool,
+
     #[structopt(subcommand)]
     pub cmd: Command,
 }
 
 #[derive(StructOpt)]
 pub enum Command {
-    #[structopt(about = "Generates performance profile from BPF trace")]
+    #[structopt(about = "Prints functions in order of calls")]
+    Calls {
+        #[structopt(parse(from_os_str), help = "Path to the input trace file")]
+        trace: PathBuf,
+
+        #[structopt(
+            parse(from_os_str),
+            short,
+            long,
+            help = "Optional path to the input dump file (enables resolving names of functions)"
+        )]
+        dump: Option<PathBuf>,
+
+        #[structopt(short, long, default_value = "2", help = "Indentation size")]
+        tab: usize,
+    },
+
+    #[structopt(about = "Generates performance profile")]
     Generate {
         #[structopt(parse(from_os_str), help = "Path to the input trace file")]
         trace: PathBuf,

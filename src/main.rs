@@ -16,9 +16,19 @@
 #![forbid(unsafe_code)]
 #![deny(warnings)]
 
+mod bpf;
+mod calls;
 mod cli;
 mod config;
+mod error;
+mod filebuf;
 mod gen;
+mod global;
+mod resolver;
+mod trace;
+
+#[cfg(test)]
+mod tests;
 
 fn main() {
     init_logger();
@@ -36,9 +46,21 @@ fn init_logger() {
     tracing_subscriber::fmt::init();
 }
 
+use crate::error::Result;
+
 /// Dispatches CLI commands.
-fn execute(app: cli::Application) -> gen::Result<()> {
+fn execute(app: cli::Application) -> Result<()> {
+    global::set_verbose(app.verbose);
+
     match app.cmd {
+        cli::Command::Calls { trace, dump, tab } => {
+            calls::run(
+                &trace,
+                dump.as_ref().map(|p| p.as_ref()), // Option<T> -> Option<&T>,
+                tab,
+            )?;
+        }
+
         cli::Command::Generate {
             trace,
             asm,
