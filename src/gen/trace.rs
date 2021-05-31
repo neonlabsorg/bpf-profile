@@ -111,7 +111,7 @@ impl Profile {
     }
 }
 
-/// Parses the trace file line by line building the Profile instance.
+/// Parses the trace file line by line, building the Profile instance.
 pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
     if global::verbose() {
         tracing::info!("Parsing trace file, creating profile...")

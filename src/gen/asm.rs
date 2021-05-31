@@ -55,6 +55,8 @@ impl Source {
     }
 }
 
+use crate::config::PADDING;
+
 /// Writes all lines of the listing to a file.
 /// Uses assembly instructions from the trace file.
 fn write_assembly_from_trace(
@@ -74,7 +76,7 @@ fn write_assembly_from_trace(
 
         let comment = match resv.resolve_by_first_pc(ix.pc()) {
             None => String::default(),
-            Some(name) => format!("\t; {}", &name),
+            Some(name) => format!("{}; {}", PADDING, &name),
         };
 
         if !ix.is_call() {

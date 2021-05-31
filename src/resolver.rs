@@ -1,6 +1,6 @@
 //! bpf-profile resolver module.
 
-use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
+use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO, PADDING};
 use crate::error::{Error, Result};
 use crate::{filebuf, global};
 use std::io::{BufRead, Write};
@@ -98,7 +98,16 @@ impl Resolver {
             ";; Generated BPF pretty assembly code for QCacheGrind"
         )?;
         for i in 2..self.pretty_source.len() {
-            writeln!(output, "{}", &self.pretty_source[i])?;
+            if !self.contains_function_with_first_pc(i) {
+                writeln!(output, "{}", &self.pretty_source[i])?;
+            } else {
+                let function = self.resolve_by_first_pc(i).unwrap();
+                writeln!(
+                    output,
+                    "{}{}; {}",
+                    &self.pretty_source[i], PADDING, function
+                )?;
+            }
         }
         output.flush()?;
         Ok(())
@@ -204,9 +213,9 @@ fn parse_dump_file(mut reader: impl BufRead, resv: &mut Resolver) -> Result<()> 
             resv.add_pretty_source(
                 pc,
                 if label.is_empty() {
-                    format!("{}:\t{}", pc, &text)
+                    format!("{}:{}{}", pc, PADDING, &text)
                 } else {
-                    format!("{}:\t{}\t; {}", pc, &text, &label)
+                    format!("{}:{}{}{}; {}", pc, PADDING, &text, PADDING, &label)
                 },
             );
             label.clear();
