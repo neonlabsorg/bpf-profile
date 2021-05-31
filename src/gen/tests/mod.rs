@@ -54,13 +54,14 @@ fn generate_line_by_line() {
     assert_eq!(output.len(), 504);
     assert_eq!(output, mock::SIMPLE_CALLGRIND_LINE_BY_LINE);
 
-    let asm = fs::read_to_string(&asm).unwrap();
+    let asm = fs::read(&asm).unwrap();
+    let asm = std::str::from_utf8(&asm).unwrap();
 
     //==== do not delete ====================================
-    println!("{}", asm);
+    //println!("{}", &asm);
     //=======================================================
 
-    assert_eq!(asm.len(), 347);
+    assert_eq!(asm.len(), 487);
     assert_eq!(asm, mock::SIMPLE_GENERATED_ASM);
 }
 

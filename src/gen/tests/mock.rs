@@ -104,17 +104,17 @@ fn=function_2 (0x300)
 31 5
 ";
 
-pub const SIMPLE_GENERATED_ASM: &str = r"1:	aaa
-2:	bbb
-3:	call function_0 (0x100)
-4:	xxx	; function_0 (0x100)
-5:	call function_1 (0x200)
-6:	call function_2 (0x300)
-7:	call function_2 (0x300)
-8:	call function_2 (0x300)
-9:	exit
-10:	ccc
-11:	ddd
+pub const SIMPLE_GENERATED_ASM: &str = r"1:        aaa
+2:        bbb
+3:        call function_0 (0x100)
+4:        xxx        ; function_0 (0x100)
+5:        call function_1 (0x200)
+6:        call function_2 (0x300)
+7:        call function_2 (0x300)
+8:        call function_2 (0x300)
+9:        exit
+10:        ccc
+11:        ddd
 
 
 
@@ -123,16 +123,16 @@ pub const SIMPLE_GENERATED_ASM: &str = r"1:	aaa
 
 
 
-20:	yyy	; function_1 (0x200)
-21:	call function_2 (0x300)
-22:	call function_2 (0x300)
-23:	exit
+20:        yyy        ; function_1 (0x200)
+21:        call function_2 (0x300)
+22:        call function_2 (0x300)
+23:        exit
 
 
 
 
 
 
-30:	zzz	; function_2 (0x300)
-31:	exit
+30:        zzz        ; function_2 (0x300)
+31:        exit
 ";
