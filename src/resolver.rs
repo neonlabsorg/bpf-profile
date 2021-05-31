@@ -3,7 +3,7 @@
 use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
 use crate::error::{Error, Result};
 use crate::{filebuf, global};
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::path::Path;
 
 /// Reads the dump file (if any) and returns a dump representation.
@@ -22,6 +22,7 @@ pub struct Resolver {
     index_function_by_address: Map<Address, Index>,
     index_function_by_first_pc: Map<ProgramCounter, Index>,
     unresolved_counter: usize,
+    pretty_source: Vec<String>,
 }
 
 const PREFIX_OF_UNRESOLVED: &str = "function_";
@@ -90,6 +91,19 @@ impl Resolver {
         func_name
     }
 
+    /// Writes source lines from dump file (if any) into the output.
+    pub fn write_pretty_source(&self, mut output: impl Write) -> Result<()> {
+        writeln!(
+            output,
+            ";; Generated BPF pretty assembly code for QCacheGrind"
+        )?;
+        for i in 2..self.pretty_source.len() {
+            writeln!(output, "{}", &self.pretty_source[i])?;
+        }
+        output.flush()?;
+        Ok(())
+    }
+
     /// Checks if a function has been indexed already.
     fn contains_function_with_first_pc(&self, first_pc: ProgramCounter) -> bool {
         self.index_function_by_first_pc.contains_key(&first_pc)
@@ -101,6 +115,19 @@ impl Resolver {
         self.functions.push(name.into());
         self.index_function_by_first_pc.insert(first_pc, func_index);
         func_index
+    }
+
+    /// Adds new line to the pretty source listing.
+    fn add_pretty_source(&mut self, i: usize, s: String) {
+        if i >= self.pretty_source.len() {
+            self.pretty_source.resize(i + 1, String::default());
+        }
+        self.pretty_source[i] = s;
+    }
+
+    fn compress(&mut self) {
+        self.functions.shrink_to_fit();
+        self.pretty_source.shrink_to_fit();
     }
 }
 
@@ -139,35 +166,55 @@ fn parse_dump_file(mut reader: impl BufRead, resv: &mut Resolver) -> Result<()> 
     }
 
     lazy_static! {
+        static ref LBB: Regex = Regex::new(r"^[[:xdigit:]]+\s+<(LBB.+)>").expect("Invalid regex");
         static ref FUNC_HEADER: Regex =
-            Regex::new(r"[[:xdigit:]]+\s+<(.+)>").expect("Invalid regex");
-        static ref FUNC_INSTRUCTION: Regex =
-            Regex::new(r"\s+(\d+)(\s+[[:xdigit:]]{2}){8}\s+.+").expect("Invalid regex");
+            Regex::new(r"^[[:xdigit:]]+\s+<(.+)>").expect("Invalid regex");
+        static ref INSTRUCTION: Regex =
+            Regex::new(r"^\s+(\d+)(\s+[[:xdigit:]]{2})+\s+(.+)").expect("Invalid regex");
     }
 
     // Read functions and their instructions
+    let mut label = String::new();
+    let mut function = String::new();
     while bytes_read != 0 {
         bytes_read = filebuf::read_line(&mut reader, &mut line)?;
         lc += 1;
-        if let Some(caps) = FUNC_HEADER.captures(&line) {
-            let name = caps[1].to_string();
-            if !name.starts_with("LBB") {
-                // Get the very first instruction of the function
-                bytes_read = filebuf::read_line(&mut reader, &mut line)?;
-                lc += 1;
-                if let Some(caps) = FUNC_INSTRUCTION.captures(&line) {
-                    let pc = caps[1]
-                        .parse::<ProgramCounter>()
-                        .expect("Cannot parse program counter");
-                    if !resv.contains_function_with_first_pc(pc) {
-                        resv.update_first_pc_index(&name, pc);
-                    }
-                } else {
-                    return Err(Error::DumpParsing(line, lc));
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        if let Some(caps) = LBB.captures(&line) {
+            assert!(label.is_empty());
+            label = caps[1].to_string();
+        } else if let Some(caps) = FUNC_HEADER.captures(&line) {
+            assert!(function.is_empty());
+            function = caps[1].to_string();
+        } else if let Some(caps) = INSTRUCTION.captures(&line) {
+            let pc = caps[1]
+                .parse::<ProgramCounter>()
+                .expect("Cannot parse program counter");
+            let text = caps[3].to_string();
+            if !function.is_empty() {
+                if !resv.contains_function_with_first_pc(pc) {
+                    resv.update_first_pc_index(&function, pc);
                 }
+                function.clear();
             }
+            resv.add_pretty_source(
+                pc,
+                if label.is_empty() {
+                    format!("{}:\t{}", pc, &text)
+                } else {
+                    format!("{}:\t{}\t; {}", pc, &text, &label)
+                },
+            );
+            label.clear();
+        } else {
+            return Err(Error::DumpParsing(line, lc));
         }
     }
 
+    resv.compress();
     Ok(())
 }
