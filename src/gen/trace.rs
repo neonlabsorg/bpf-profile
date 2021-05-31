@@ -87,11 +87,11 @@ impl Profile {
     /// Adds next call to the call stack.
     fn push_call(&mut self, call: Call, first_pc: ProgramCounter) {
         let address = call.address();
-        tracing::debug!("Profile.push_call {}", address);
+        tracing::debug!("Profile.push_call 0x{:x}", address);
         self.ground.push_call(call);
         #[allow(clippy::map_entry)]
         if !self.functions.contains_key(&address) {
-            tracing::debug!("Add function to the registry: {}", address);
+            tracing::debug!("Add function to the registry: 0x{:x}", address);
             let func = Function::new(address, first_pc, &mut self.resolver);
             self.functions.insert(address, func);
         }
@@ -100,7 +100,7 @@ impl Profile {
     /// Removes finished call from the call stack and adds it to the caller.
     fn pop_call(&mut self) {
         let call = self.ground.pop_call();
-        tracing::debug!("Profile.pop_call {}", &call.address());
+        tracing::debug!("Profile.pop_call 0x{:x}", &call.address());
         if !call.is_ground() {
             let f = self
                 .functions

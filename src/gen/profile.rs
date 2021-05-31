@@ -32,9 +32,16 @@ impl Function {
     /// Creates new function object.
     pub fn new(address: Address, first_pc: ProgramCounter, resolver: &mut Resolver) -> Self {
         assert_ne!(address, GROUND_ZERO);
+        let name = resolver.update(address, first_pc);
+        tracing::debug!(
+            "New function {} with 0x{:x} and first pc {}",
+            &name,
+            address,
+            first_pc
+        );
         Function {
             address,
-            name: resolver.update(address, first_pc),
+            name,
             costs: BTreeMap::new(),
             calls: Vec::new(),
         }
@@ -47,14 +54,18 @@ impl Function {
 
     /// Increments the immediate cost of the function.
     pub fn increment_cost(&mut self, pc: ProgramCounter) {
-        tracing::debug!("Function({}).increment_cost", self.address);
+        tracing::debug!("Function(0x{:x}).increment_cost", self.address);
         let c = *self.costs.entry(pc).or_insert(0);
         self.costs.insert(pc, c + 1);
     }
 
     /// Adds finished enclosed call for this function.
     pub fn add_call(&mut self, call: Call) {
-        tracing::debug!("Function({}).add_call {}", self.address, call.address);
+        tracing::debug!(
+            "Function(0x{:x}).add_call 0x{:x}",
+            self.address,
+            call.address
+        );
         self.calls.push(call);
     }
 }
@@ -118,7 +129,7 @@ impl Call {
 
     /// Increments the cost of this call.
     pub fn increment_cost(&mut self, pc: ProgramCounter, functions: &mut Functions) {
-        tracing::debug!("Call({}).increment_cost", self.address);
+        tracing::debug!("Call(0x{:x}).increment_cost", self.address);
         match *self.callee {
             Some(ref mut callee) => {
                 callee.increment_cost(pc, functions);
@@ -156,7 +167,7 @@ impl Call {
 
     /// Removes current call from the call stack.
     pub fn pop_call(&mut self) -> Call {
-        tracing::debug!("Call({}).pop_call depth={}", self.address, self.depth);
+        tracing::debug!("Call(0x{:x}).pop_call depth={}", self.address, self.depth);
         if self.depth == 0 {
             panic!("Exit without call");
         }
