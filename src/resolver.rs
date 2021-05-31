@@ -113,6 +113,11 @@ impl Resolver {
         Ok(())
     }
 
+    /// Searches a function by name.
+    fn contains_function(&self, name: &str) -> bool {
+        self.functions.iter().any(|f| f == name)
+    }
+
     /// Checks if a function has been indexed already.
     fn contains_function_with_first_pc(&self, first_pc: ProgramCounter) -> bool {
         self.index_function_by_first_pc.contains_key(&first_pc)
@@ -206,6 +211,11 @@ fn parse_dump_file(mut reader: impl BufRead, resv: &mut Resolver) -> Result<()> 
             let text = caps[3].to_string();
             if !function.is_empty() {
                 if !resv.contains_function_with_first_pc(pc) {
+                    // There can be several copies of identical function,
+                    // so we generate unique name for each copy
+                    while resv.contains_function(&function) {
+                        function += "@";
+                    }
                     resv.update_first_pc_index(&function, pc);
                 }
                 function.clear();
