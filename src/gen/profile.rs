@@ -147,7 +147,7 @@ impl Call {
     /// Adds next call to the call stack.
     pub fn push_call(&mut self, mut call: Call) {
         tracing::debug!(
-            "Call({}).push_call {} depth={}",
+            "Call(0x{:x}).push_call 0x{:x} depth={}",
             self.address,
             call.address,
             self.depth
