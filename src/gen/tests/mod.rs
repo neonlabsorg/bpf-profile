@@ -9,9 +9,9 @@ use std::path::Path;
 
 #[test]
 fn generate_integral() {
-    let resolv = resolver::Resolver::default();
+    let resv = resolver::Resolver::default();
     let reader = Cursor::new(mock::SIMPLE_INPUT);
-    let prof = trace::Profile::new(resolv, None);
+    let prof = trace::Profile::new(resv, None);
     assert!(prof.is_ok());
 
     let mut prof = prof.unwrap();
@@ -32,11 +32,11 @@ fn generate_integral() {
 
 #[test]
 fn generate_line_by_line() {
-    let resolv = resolver::Resolver::default();
+    let resv = resolver::Resolver::default();
     let reader = Cursor::new(mock::SIMPLE_INPUT);
     let asm_name = "/tmp/generate_line_by_line.asm".to_owned();
     let asm = Path::new(&asm_name);
-    let prof = trace::Profile::new(resolv, Some(&asm));
+    let prof = trace::Profile::new(resv, Some(&asm));
     assert!(prof.is_ok());
 
     let mut prof = prof.unwrap();
@@ -54,13 +54,14 @@ fn generate_line_by_line() {
     assert_eq!(output.len(), 504);
     assert_eq!(output, mock::SIMPLE_CALLGRIND_LINE_BY_LINE);
 
-    let asm = fs::read_to_string(&asm).unwrap();
+    let asm = fs::read(&asm).unwrap();
+    let asm = std::str::from_utf8(&asm).unwrap();
 
     //==== do not delete ====================================
-    println!("{}", asm);
+    //println!("{}", &asm);
     //=======================================================
 
-    assert_eq!(asm.len(), 347);
+    assert_eq!(asm.len(), 487);
     assert_eq!(asm, mock::SIMPLE_GENERATED_ASM);
 }
 

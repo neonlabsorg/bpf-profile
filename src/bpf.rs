@@ -1,6 +1,6 @@
 //! bpf-profile bpf module.
 
-use crate::config::ProgramCounter;
+use crate::config::{ProgramCounter, PADDING};
 
 /// Represents BPF instruction (call or another).
 #[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
@@ -98,7 +98,7 @@ impl fmt::Display for Instruction {
         if self.is_empty() {
             write!(f, "")
         } else {
-            write!(f, "{}:\t{}", self.pc, &self.text)
+            write!(f, "{}:{}{}", self.pc, PADDING, &self.text)
         }
     }
 }

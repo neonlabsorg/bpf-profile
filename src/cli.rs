@@ -1,4 +1,4 @@
-//! bpf-profile options parser.
+//! bpf-profile command line interface definition.
 
 use crate::config;
 use std::path::PathBuf;
@@ -68,7 +68,7 @@ pub enum Command {
             long,
             possible_values(&config::FORMATS),
             default_value = &config::DEFAULT_FORMAT,
-            help = "Format of the generated profile"
+            help = "Optional format of the generated profile"
         )]
         format: String,
 
@@ -76,7 +76,7 @@ pub enum Command {
             parse(from_os_str),
             short,
             long,
-            help = "Path to the generated profile [default: stdout]"
+            help = "Optional path to the generated profile [default: standard output]"
         )]
         output: Option<PathBuf>,
     },

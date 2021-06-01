@@ -1,18 +1,16 @@
 //! bpf-profile resolver module.
 
-use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO};
+use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO, PADDING};
 use crate::error::{Error, Result};
 use crate::{filebuf, global};
-use lazy_static::lazy_static;
-use regex::Regex;
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 use std::path::Path;
 
 /// Reads the dump file (if any) and returns a dump representation.
-pub fn read(filename: Option<&Path>) -> Result<Resolver> {
-    match filename {
+pub fn read(filepath: Option<&Path>) -> Result<Resolver> {
+    match filepath {
         None => Ok(Resolver::default()),
-        Some(filename) => Resolver::read(filename),
+        Some(path) => Resolver::read(path),
     }
 }
 
@@ -24,22 +22,23 @@ pub struct Resolver {
     index_function_by_address: Map<Address, Index>,
     index_function_by_first_pc: Map<ProgramCounter, Index>,
     unresolved_counter: usize,
+    pretty_source: Vec<String>,
 }
 
 const PREFIX_OF_UNRESOLVED: &str = "function_";
 
 impl Resolver {
-    /// Reads the dump file to collect function names.
+    /// Reads the dump file to collect function names and pretty assembly.
     /// Returns non-trivial (with real function names) instance of the Resolver.
-    fn read(filename: &Path) -> Result<Self> {
+    fn read(filepath: &Path) -> Result<Self> {
         if global::verbose() {
             tracing::info!("Reading dump file, creating resolver...")
         }
-        let mut resolver = Resolver::default();
-        let reader = filebuf::open(filename)?;
-        parse_dump_file(reader, &mut resolver)?;
-        resolver.not_default = true;
-        Ok(resolver)
+        let mut resv = Resolver::default();
+        let reader = filebuf::open(filepath)?;
+        parse_dump_file(reader, &mut resv)?;
+        resv.not_default = true;
+        Ok(resv)
     }
 
     /// Checks if resolver was generated from nothing (default) or from the dump file.
@@ -92,6 +91,33 @@ impl Resolver {
         func_name
     }
 
+    /// Writes source lines from dump file (if any) into the output.
+    pub fn write_pretty_source(&self, mut output: impl Write) -> Result<()> {
+        writeln!(
+            output,
+            ";; Generated BPF pretty assembly code for QCacheGrind"
+        )?;
+        for i in 2..self.pretty_source.len() {
+            if !self.contains_function_with_first_pc(i) {
+                writeln!(output, "{}", &self.pretty_source[i])?;
+            } else {
+                let function = self.resolve_by_first_pc(i).unwrap();
+                writeln!(
+                    output,
+                    "{}{}; {}",
+                    &self.pretty_source[i], PADDING, function
+                )?;
+            }
+        }
+        output.flush()?;
+        Ok(())
+    }
+
+    /// Searches a function by name.
+    fn contains_function(&self, name: &str) -> bool {
+        self.functions.iter().any(|f| f == name)
+    }
+
     /// Checks if a function has been indexed already.
     fn contains_function_with_first_pc(&self, first_pc: ProgramCounter) -> bool {
         self.index_function_by_first_pc.contains_key(&first_pc)
@@ -104,13 +130,29 @@ impl Resolver {
         self.index_function_by_first_pc.insert(first_pc, func_index);
         func_index
     }
+
+    /// Adds new line to the pretty source listing.
+    fn add_pretty_source(&mut self, i: usize, s: String) {
+        if i >= self.pretty_source.len() {
+            self.pretty_source.resize(i + 1, String::default());
+        }
+        self.pretty_source[i] = s;
+    }
+
+    fn compress(&mut self) {
+        self.functions.shrink_to_fit();
+        self.pretty_source.shrink_to_fit();
+    }
 }
+
+use lazy_static::lazy_static;
+use regex::Regex;
 
 const HEADER: &str = "ELF Header";
 const DISASM_HEADER: &str = "Disassembly of section .text";
 
 /// Parses the dump file building the Resolver instance.
-fn parse_dump_file(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()> {
+fn parse_dump_file(mut reader: impl BufRead, resv: &mut Resolver) -> Result<()> {
     let mut line = String::with_capacity(512);
     let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
@@ -138,35 +180,60 @@ fn parse_dump_file(mut reader: impl BufRead, resolv: &mut Resolver) -> Result<()
     }
 
     lazy_static! {
+        static ref LBB: Regex = Regex::new(r"^[[:xdigit:]]+\s+<(LBB.+)>").expect("Invalid regex");
         static ref FUNC_HEADER: Regex =
-            Regex::new(r"[[:xdigit:]]+\s+<(.+)>").expect("Invalid regex");
-        static ref FUNC_INSTRUCTION: Regex =
-            Regex::new(r"\s+(\d+)(\s+[[:xdigit:]]{2}){8}\s+.+").expect("Invalid regex");
+            Regex::new(r"^[[:xdigit:]]+\s+<(.+)>").expect("Invalid regex");
+        static ref INSTRUCTION: Regex =
+            Regex::new(r"^\s+(\d+)(\s+[[:xdigit:]]{2})+\s+(.+)").expect("Invalid regex");
     }
 
     // Read functions and their instructions
+    let mut label = String::new();
+    let mut function = String::new();
     while bytes_read != 0 {
         bytes_read = filebuf::read_line(&mut reader, &mut line)?;
         lc += 1;
-        if let Some(caps) = FUNC_HEADER.captures(&line) {
-            let name = caps[1].to_string();
-            if !name.starts_with("LBB") {
-                // Get the very first instruction of the function
-                bytes_read = filebuf::read_line(&mut reader, &mut line)?;
-                lc += 1;
-                if let Some(caps) = FUNC_INSTRUCTION.captures(&line) {
-                    let pc = caps[1]
-                        .parse::<ProgramCounter>()
-                        .expect("Cannot parse program counter");
-                    if !resolv.contains_function_with_first_pc(pc) {
-                        resolv.update_first_pc_index(&name, pc);
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        if let Some(caps) = LBB.captures(&line) {
+            assert!(label.is_empty());
+            label = caps[1].to_string();
+        } else if let Some(caps) = FUNC_HEADER.captures(&line) {
+            assert!(function.is_empty());
+            function = caps[1].to_string();
+        } else if let Some(caps) = INSTRUCTION.captures(&line) {
+            let pc = caps[1]
+                .parse::<ProgramCounter>()
+                .expect("Cannot parse program counter");
+            let text = caps[3].to_string();
+            if !function.is_empty() {
+                if !resv.contains_function_with_first_pc(pc) {
+                    // There can be several copies of identical function,
+                    // so we generate unique name for each copy
+                    while resv.contains_function(&function) {
+                        function += "@";
                     }
-                } else {
-                    return Err(Error::DumpParsing(line, lc));
+                    resv.update_first_pc_index(&function, pc);
                 }
+                function.clear();
             }
+            resv.add_pretty_source(
+                pc,
+                if label.is_empty() {
+                    format!("{}:{}{}", pc, PADDING, &text)
+                } else {
+                    format!("{}:{}{}{}; {}", pc, PADDING, &text, PADDING, &label)
+                },
+            );
+            label.clear();
+        } else {
+            return Err(Error::DumpParsing(line, lc));
         }
     }
 
+    resv.compress();
     Ok(())
 }

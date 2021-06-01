@@ -41,59 +41,55 @@ impl Source {
     }
 
     /// Writes all lines of the listing to a file.
-    pub fn write(&self, resolver: &Resolver) -> Result<()> {
+    pub fn write(&self, resv: &Resolver) -> Result<()> {
         if global::verbose() {
             tracing::info!("Writing assembly file...")
         }
         let output = filebuf::open_w(&self.output_path)?;
-        if resolver.is_default() {
-            write_assembly_from_trace(output, &self.ixs, resolver)?;
+        if resv.is_default() {
+            write_assembly_from_trace(output, &self.ixs, resv)?;
         } else {
-            write_assembly_from_dump(output, &self.ixs, resolver)?;
+            resv.write_pretty_source(output)?;
         }
         Ok(())
     }
 }
+
+use crate::config::PADDING;
 
 /// Writes all lines of the listing to a file.
 /// Uses assembly instructions from the trace file.
 fn write_assembly_from_trace(
     mut output: impl Write,
     ixs: &[Instruction],
-    resolver: &Resolver,
+    resv: &Resolver,
 ) -> Result<()> {
     for (i, ix) in ixs.iter().enumerate() {
-        if i == 0 && ix.is_empty() {
-            writeln!(output, ";; Generated BPF source code for QCacheGrind")?;
+        if ix.is_empty() {
+            if i > 0 {
+                writeln!(output)?;
+            } else {
+                writeln!(output, ";; Generated BPF assembly code for QCacheGrind")?;
+            }
             continue;
         }
 
-        let comment = match resolver.resolve_by_first_pc(ix.pc()) {
+        let comment = match resv.resolve_by_first_pc(ix.pc()) {
             None => String::default(),
-            Some(name) => format!("\t; {}", &name),
+            Some(name) => format!("{}; {}", PADDING, &name),
         };
 
-        if ix.is_call() {
+        if !ix.is_call() {
+            writeln!(output, "{}{}", ix, comment)?;
+        } else {
             let op = ix.extract_call_operation(i)?;
             let address = ix.extract_call_target(i)?;
-            let name = resolver.resolve_by_address(address);
+            let name = resv.resolve_by_address(address);
             let ix = Instruction::new(ix.pc(), format!("{} {}", &op, &name));
             writeln!(output, "{}{}", ix, comment)?;
-            continue;
         }
-
-        writeln!(output, "{}{}", ix, comment)?;
     }
 
     output.flush()?;
     Ok(())
-}
-
-/// TODO: take prettier assembly from dump
-fn write_assembly_from_dump(
-    output: impl Write,
-    ixs: &[Instruction],
-    resolver: &Resolver,
-) -> Result<()> {
-    write_assembly_from_trace(output, ixs, resolver)
 }
