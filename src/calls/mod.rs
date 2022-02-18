@@ -6,7 +6,7 @@ use std::path::Path;
 
 /// Reads the trace input file and prints functions in order of calls.
 pub fn run(trace_path: &Path, dump_path: Option<&Path>, tab: usize) -> Result<()> {
-    if !crate::trace::contains_standard_header(filebuf::open(&trace_path)?)? {
+    if !crate::trace::contains_standard_header(filebuf::open(trace_path)?)? {
         return Err(Error::TraceFormat);
     }
 
@@ -14,12 +14,12 @@ pub fn run(trace_path: &Path, dump_path: Option<&Path>, tab: usize) -> Result<()
     let mut resv = crate::resolver::read(dump_path)?;
 
     {
-        let reader = filebuf::open(&trace_path)?;
+        let reader = filebuf::open(trace_path)?;
         max_depth = update_resolver(reader, &mut resv)?;
     }
 
     let depth_width = max_depth.to_string().len();
-    let reader = filebuf::open(&trace_path)?;
+    let reader = filebuf::open(trace_path)?;
     trace_calls(reader, &resv, depth_width, tab)?;
 
     Ok(())

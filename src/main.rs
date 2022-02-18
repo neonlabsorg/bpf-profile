@@ -13,8 +13,9 @@
 //! You can create the trace file by running the Solana cluster under `RUST_LOG`:
 //!     `export RUST_LOG=solana_bpf_loader_program=trace`
 
-#![forbid(unsafe_code)]
 #![deny(warnings)]
+#![deny(unsafe_code)]
+#![deny(missing_docs)]
 
 mod bpf;
 mod calls;

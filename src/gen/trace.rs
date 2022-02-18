@@ -32,7 +32,7 @@ impl Profile {
             ground: Call::new(GROUND_ZERO, 0),
             functions,
             resolver: resv,
-            asm: asm_path.map(|p| asm::Source::new(p)),
+            asm: asm_path.map(asm::Source::new),
         })
     }
 
@@ -45,7 +45,7 @@ impl Profile {
         tracing::debug!("Profile.create {:?}", trace_path);
 
         let resv = resolver::read(dump_path)?;
-        let reader = filebuf::open(&trace_path)?;
+        let reader = filebuf::open(trace_path)?;
         let mut prof = Profile::new(resv, asm_path)?;
         parse(reader, &mut prof)?;
 

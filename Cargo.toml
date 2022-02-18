@@ -2,15 +2,15 @@
 name = "bpf-profile"
 version = "1.0.0"
 authors = ["NeonLabs Maintainers <maintainers@cyber-core.dev>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
-lazy_static = "1.4.0"
-regex = "1.5.4"
-structopt = { version = "0.3.21", features = ["color"] }
-thiserror = "1.0.25"
-tracing = "0.1.26"
-tracing-subscriber = "0.2.18"
+lazy_static = "1.4"
+regex = "1.5"
+structopt = { version = "0.3", features = ["color"] }
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [profile.release]
 overflow-checks = true

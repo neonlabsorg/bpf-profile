@@ -22,7 +22,7 @@ pub fn run(
     _: &str, // always 'callgrind' currently
     output_path: Option<&Path>,
 ) -> Result<()> {
-    if !crate::trace::contains_standard_header(filebuf::open(&trace_path)?)? {
+    if !crate::trace::contains_standard_header(filebuf::open(trace_path)?)? {
         return Err(Error::TraceFormat);
     }
 
