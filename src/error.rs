@@ -4,6 +4,7 @@ use std::io;
 use std::path::PathBuf;
 
 /// Represents errors of the converter.
+#[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Unsupported file name '{0}'")]

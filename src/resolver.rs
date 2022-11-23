@@ -1,10 +1,13 @@
 //! bpf-profile resolver module.
 
-use crate::config::{Address, Index, Map, ProgramCounter, GROUND_ZERO, PADDING};
-use crate::error::{Error, Result};
-use crate::{filebuf, global};
 use std::io::{BufRead, Write};
 use std::path::Path;
+
+use lazy_static::lazy_static;
+use regex::Regex;
+
+use crate::{Address, filebuf, global, GROUND_ZERO, Index, Map, PADDING, ProgramCounter};
+use crate::error::{Error, Result};
 
 /// Reads the dump file (if any) and returns a dump representation.
 pub fn read(filepath: Option<&Path>) -> Result<Resolver> {
@@ -144,9 +147,6 @@ impl Resolver {
         self.pretty_source.shrink_to_fit();
     }
 }
-
-use lazy_static::lazy_static;
-use regex::Regex;
 
 const HEADER: &str = "ELF Header";
 const DISASM_HEADER: &str = "Disassembly of section .text";

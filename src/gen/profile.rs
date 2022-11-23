@@ -1,7 +1,13 @@
 //! bpf-profile-generate profile module.
 
-use crate::config::{Address, Cost, Map, ProgramCounter};
 use std::collections::BTreeMap;
+use std::io::Write;
+
+use crate::{Address, Cost, GROUND_ZERO, Map, ProgramCounter};
+use crate::bpf::Instruction;
+use crate::error::{Error, Result};
+use crate::global;
+use crate::resolver::Resolver;
 
 pub type Functions = Map<Address, Function>;
 type Costs = BTreeMap<ProgramCounter, Cost>; // sort by pc
@@ -14,9 +20,6 @@ pub struct Function {
     costs: Costs,
     calls: Vec<Call>,
 }
-
-use crate::config::GROUND_ZERO;
-use crate::resolver::Resolver;
 
 impl Function {
     /// Creates initial function object which stores total cost of entire program.
@@ -81,9 +84,6 @@ pub struct Call {
     depth: usize,
 }
 
-use crate::bpf::Instruction;
-use crate::error::{Error, Result};
-
 impl Call {
     /// Creates new call object.
     pub fn new(address: Address, caller_pc: ProgramCounter) -> Self {
@@ -99,11 +99,10 @@ impl Call {
 
     /// Creates new call object from a trace instruction (which must be a call).
     pub fn from(ix: &Instruction, lc: usize) -> Result<Self> {
-        let text = ix.text();
         if !ix.is_call() {
-            return Err(Error::TraceNotCall(text, lc));
+            return Err(Error::TraceNotCall(ix.text(), lc));
         }
-        let address = ix.extract_call_target(lc)?;
+        let address = ix.call_target(lc)?;
         Ok(Call::new(address, ix.pc()))
     }
 
@@ -182,9 +181,6 @@ impl Call {
         }
     }
 }
-
-use crate::global;
-use std::io::Write;
 
 /// Writes information about calls of functions and their costs.
 pub fn write_callgrind_functions(

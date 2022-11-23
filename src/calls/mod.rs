@@ -49,7 +49,7 @@ fn update_resolver(mut reader: impl BufRead, resv: &mut Resolver) -> Result<usiz
             lc += 1;
         }
 
-        let ixr = Instruction::parse(&line);
+        let ixr = Instruction::parse(&line, lc);
         if let Err(Error::TraceSkipped) = &ixr {
             /* warn!("Skip '{}'", &line.trim()); */
             line.clear();
@@ -71,13 +71,13 @@ fn update_resolver(mut reader: impl BufRead, resv: &mut Resolver) -> Result<usiz
         // 1024: call 0x8bf38212
         // ...
         while ix.is_call() {
-            let address = ix.extract_call_target(lc)?;
+            let address = ix.call_target(lc)?;
             depth += 1;
             max_depth = std::cmp::max(depth, max_depth);
             // Read next line — the first instruction of the call
             bytes_read = filebuf::read_line(&mut reader, &mut line)?;
             lc += 1;
-            ix = Instruction::parse(&line)?;
+            ix = Instruction::parse(&line, lc)?;
             resv.update(address, ix.pc());
         }
         // Keep here the last non-call line to process further
@@ -109,7 +109,7 @@ fn trace_calls(
             lc += 1;
         }
 
-        let ixr = Instruction::parse(&line);
+        let ixr = Instruction::parse(&line, lc);
         if let Err(Error::TraceSkipped) = &ixr {
             /* warn!("Skip '{}'", &line.trim()); */
             line.clear();
@@ -131,7 +131,7 @@ fn trace_calls(
         // 1024: call 0x8bf38212
         // ...
         while ix.is_call() {
-            let address = ix.extract_call_target(lc)?;
+            let address = ix.call_target(lc)?;
             let name = resv.resolve_by_address(address);
             println!(
                 "[{:width$}] {:indent$}{}",
@@ -145,7 +145,7 @@ fn trace_calls(
             // Read next line — the first instruction of the call
             bytes_read = filebuf::read_line(&mut reader, &mut line)?;
             lc += 1;
-            ix = Instruction::parse(&line)?;
+            ix = Instruction::parse(&line, lc)?;
         }
         // Keep here the last non-call line to process further
     }

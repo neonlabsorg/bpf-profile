@@ -1,11 +1,12 @@
 //! bpf-profile-generate tests module.
 
-mod mock;
-
-use crate::{config, gen::trace, resolver};
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
+
+use crate::{DEFAULT_ASM, gen::trace, resolver};
+
+mod mock;
 
 #[test]
 fn generate_integral() {
@@ -19,7 +20,7 @@ fn generate_integral() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, config::DEFAULT_ASM);
+    let r = prof.write_callgrind(&mut output, DEFAULT_ASM);
     assert!(r.is_ok());
 
     //==== do not delete ====================================

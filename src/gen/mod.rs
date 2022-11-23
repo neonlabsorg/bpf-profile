@@ -1,18 +1,20 @@
 //! bpf-profile generate command implementation.
 
+use std::io;
+use std::path::Path;
+
+use trace::Profile;
+
+use crate::DEFAULT_ASM;
+use crate::error::{Error, Result};
+use crate::filebuf;
+
 mod asm;
 mod profile;
 mod trace;
 
 #[cfg(test)]
 mod tests;
-
-use crate::config::DEFAULT_ASM;
-use crate::error::{Error, Result};
-use crate::filebuf;
-use std::io;
-use std::path::Path;
-use trace::Profile;
 
 /// Runs the conversion from BPF trace to a profiler output.
 pub fn run(

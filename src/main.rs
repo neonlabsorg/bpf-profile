@@ -15,21 +15,13 @@
 
 #![deny(warnings)]
 #![deny(unsafe_code)]
-#![deny(missing_docs)]
+#![warn(missing_docs)]
 
-mod bpf;
-mod calls;
+use bpf_profile::{calls, gen, global};
+use bpf_profile::error::Result;
+
 mod cli;
 mod config;
-mod error;
-mod filebuf;
-mod gen;
-mod global;
-mod resolver;
-mod trace;
-
-#[cfg(test)]
-mod tests;
 
 fn main() {
     init_logger();
@@ -46,8 +38,6 @@ fn init_logger() {
     }
     tracing_subscriber::fmt::init();
 }
-
-use crate::error::Result;
 
 /// Dispatches CLI commands.
 fn execute(app: cli::Application) -> Result<()> {

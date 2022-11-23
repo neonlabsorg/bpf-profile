@@ -1,27 +1,94 @@
 //! bpf-profile bpf module.
 
-use crate::config::{ProgramCounter, PADDING};
+use std::fmt;
+
+use lazy_static::lazy_static;
+use regex::Regex;
+
+use crate::{Address, ProgramCounter};
+use crate::PADDING;
+use crate::error::{Error, Result};
+
+/// Represents parsed BPF instruction data.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
+pub enum InstructionData {
+    /// Default (empty) instruction.
+    Empty,
+    /// Call or CallX instruction.
+    Call {
+        /// `call` or `callx`.
+        operation: Box<str>,
+        /// Target address.
+        target: Address,
+    },
+    /// Exit instruction.
+    Exit,
+    /// Other instruction (none of above).
+    Other,
+}
+
+impl Default for InstructionData {
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
+impl InstructionData {
+    fn parse(s: &str, lc: usize) -> Result<Self> {
+        let s = s.trim();
+
+        if s.is_empty() {
+            return Ok(InstructionData::Empty);
+        }
+
+        if Self::is_exit(s) {
+            return Ok(InstructionData::Exit);
+        }
+
+        if Self::is_call(s) {
+            let mut pair = s.split_whitespace(); // => "call something"
+            let operation = pair
+                .next()
+                .ok_or_else(|| Error::TraceParsing(s.into(), lc))?
+                .into();
+            let target = pair
+                .next()
+                .ok_or_else(|| Error::TraceParsing(s.into(), lc))?;
+            let target = hex_str_to_address(target);
+            return Ok(InstructionData::Call { operation, target });
+        }
+
+        Ok(InstructionData::Other)
+    }
+
+    /// Checks if the instruction is a call of function.
+    fn is_call(text: &str) -> bool {
+        text.starts_with("call")
+    }
+
+    /// Checks if the instruction is exit of function.
+    fn is_exit(text: &str) -> bool {
+        text == "exit"
+    }
+
+}
 
 /// Represents BPF instruction (call or another).
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Instruction {
     pc: ProgramCounter,
+    data: InstructionData,
     text: String,
 }
 
-use crate::config::Address;
-use crate::error::{Error, Result};
-use lazy_static::lazy_static;
-use regex::Regex;
-
 impl Instruction {
     /// Creates new instance of Instruction.
-    pub fn new(pc: ProgramCounter, text: String) -> Self {
-        Instruction { pc, text }
+    pub const fn new(pc: ProgramCounter, data: InstructionData, text: String) -> Self {
+        Self { pc, data, text }
     }
 
     /// Parses the input string and creates corresponding instruction if possible.
-    pub fn parse(s: &str) -> Result<Self> {
+    pub fn parse(s: &str, lc: usize) -> Result<Self> {
         lazy_static! {
             static ref TRACE_INSTRUCTION: Regex =
                 Regex::new(r"\d+\s+\[.+\]\s+(\d+):\s+(.+)").expect("Invalid regex");
@@ -30,9 +97,10 @@ impl Instruction {
         if let Some(caps) = TRACE_INSTRUCTION.captures(s) {
             let pc = caps[1]
                 .parse::<ProgramCounter>()
-                .expect("Cannot parse program counter");
+                .unwrap_or_else(|_| panic!("Cannot parse program counter in instruction #{}", lc));
             let text = caps[2].trim().to_string();
-            return Ok(Instruction { pc, text });
+            let data = InstructionData::parse(&text, lc)?;
+            return Ok(Instruction { pc, data, text });
         }
 
         Err(Error::TraceSkipped)
@@ -40,12 +108,17 @@ impl Instruction {
 
     /// Returns true if default instruction.
     pub fn is_empty(&self) -> bool {
-        self.pc == 0 && self.text.is_empty()
+        self.data == InstructionData::Empty
     }
 
     /// Returns program counter of the instruction.
     pub fn pc(&self) -> ProgramCounter {
         self.pc
+    }
+
+    /// Returns copy of the instruction data.
+    pub fn data(&self) -> InstructionData {
+        self.data.clone()
     }
 
     /// Returns copy of the textual representation.
@@ -55,51 +128,37 @@ impl Instruction {
 
     /// Checks if the instruction is a call of function.
     pub fn is_call(&self) -> bool {
-        self.text.starts_with("call")
+        matches!(&self.data, InstructionData::Call { .. })
     }
 
     /// Checks if the instruction is exit of function.
     pub fn is_exit(&self) -> bool {
-        self.text == "exit"
+        self.data == InstructionData::Exit
     }
 
     /// Returns "call" or "callx" or error if instruction is not a call.
-    pub fn extract_call_operation(&self, lc: usize) -> Result<String> {
-        if !self.is_call() {
-            return Err(Error::TraceNotCall(self.text(), lc));
+    pub fn call_operation(&self, lc: usize) -> Result<String> {
+        match &self.data {
+            InstructionData::Call { operation: call_operation, .. } => Ok(call_operation.to_string()),
+            _ => Err(Error::TraceNotCall(self.text(), lc)),
         }
-        let mut pair = self.text.split_whitespace(); // => "call something"
-        let op = pair
-            .next()
-            .ok_or_else(|| Error::TraceParsing(self.text(), lc))?;
-        Ok(op.to_string())
     }
 
     /// Returns address of a call target or error if instruction is not a call.
-    pub fn extract_call_target(&self, lc: usize) -> Result<Address> {
-        if !self.is_call() {
-            return Err(Error::TraceNotCall(self.text(), lc));
+    pub fn call_target(&self, lc: usize) -> Result<Address> {
+        match &self.data {
+            InstructionData::Call { target, .. } => Ok(*target),
+            _ => Err(Error::TraceNotCall(self.text(), lc)),
         }
-        let mut pair = self.text.split_whitespace(); // => "call something"
-        let _ = pair
-            .next()
-            .ok_or_else(|| Error::TraceParsing(self.text(), lc))?;
-        let address = pair
-            .next()
-            .ok_or_else(|| Error::TraceParsing(self.text(), lc))?;
-        Ok(hex_str_to_address(address))
     }
 }
-
-use std::fmt;
 
 impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if self.is_empty() {
-            write!(f, "")
-        } else {
-            write!(f, "{}:{}{}", self.pc, PADDING, &self.text)
+            return write!(f, "");
         }
+        write!(f, "{}:{}{}", self.pc, PADDING, &self.text)
     }
 }
 

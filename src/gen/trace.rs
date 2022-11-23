@@ -3,7 +3,7 @@
 
 use super::asm;
 use super::profile::{self, Call, Function, Functions};
-use crate::config::{Cost, Map, ProgramCounter, GROUND_ZERO};
+use crate::{Cost, Map, ProgramCounter, GROUND_ZERO};
 use crate::error::{Error, Result};
 use crate::resolver::{self, Resolver};
 use crate::{filebuf, global};
@@ -111,61 +111,60 @@ impl Profile {
 }
 
 /// Parses the trace file line by line, building the Profile instance.
-pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
+pub fn parse(reader: impl BufRead, prof: &mut Profile) -> Result<()> {
     if global::verbose() {
         tracing::info!("Parsing trace file, creating profile...")
     }
 
-    let mut line = String::with_capacity(512);
-    let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
-    let mut ix: Instruction;
-
-    while bytes_read != 0 {
-        if line.is_empty() {
-            bytes_read = filebuf::read_line(&mut reader, &mut line)?;
+    let iterator = reader.lines()
+        .map(|line| {
             lc += 1;
-        }
+            match line {
+                Ok(line) => Instruction::parse(&line, lc).map(|ix| (lc, ix)),
+                Err(err) => Err(err.into()),
+            }
+        });
 
-        let ixr = Instruction::parse(&line);
-        if let Err(Error::TraceSkipped) = &ixr {
-            /* warn!("Skip '{}'", &line.trim()); */
-            line.clear();
-            continue;
-        }
-        ix = ixr?;
+    process(iterator, prof)
+}
 
-        prof.keep_asm(&ix);
-
-        if ix.is_exit() {
-            prof.increment_cost(ix.pc());
-            prof.pop_call();
-            line.clear();
-            continue;
-        }
-
-        if !ix.is_call() {
-            prof.increment_cost(ix.pc());
-            line.clear();
-            continue;
-        }
+/// Parses the trace items one by one, building the Profile instance.
+pub fn process(
+    iterator: impl Iterator<Item=Result<(usize, Instruction)>>,
+    prof: &mut Profile,
+) -> Result<()> {
+    let mut call_opt = None;
+    for result in iterator {
+        let (lc, ix) = match result {
+            Ok((lc, ix)) => (lc, ix),
+            Err(Error::TraceSkipped) => {
+                /* warn!("Skip '{}'", &line.trim()); */
+                continue;
+            }
+            Err(err) => return Err(err),
+        };
 
         // Handle sequences of enclosed calls as well:
         // 604: call 0xcb3fc071
         // 588: call 0x8e0001f9
         // 1024: call 0x8bf38212
         // ...
-        while ix.is_call() {
-            prof.increment_cost(ix.pc());
-            let call = Call::from(&ix, lc)?;
-            // Read next line — the first instruction of the call
-            bytes_read = filebuf::read_line(&mut reader, &mut line)?;
-            lc += 1;
-            ix = Instruction::parse(&line)?;
+        if let Some(call) = call_opt.take() {
             prof.push_call(call, ix.pc());
         }
-        // Keep here the last non-call line to process further
+
+        prof.keep_asm(&ix);
+        prof.increment_cost(ix.pc());
+
+        if ix.is_exit() {
+            prof.pop_call();
+        } else if ix.is_call() {
+            call_opt = Some(Call::from(&ix, lc)?);
+        }
     }
+
+    assert!(call_opt.is_none());
 
     if prof.ground.depth() > 0 {
         tracing::warn!("Unbalanced call/exit: {}", &prof.ground.depth());
