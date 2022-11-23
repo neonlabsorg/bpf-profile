@@ -7,7 +7,7 @@ use std::path::Path;
 
 /// Opens a file for buffered reading.
 pub fn open(filepath: &Path) -> Result<impl BufRead> {
-    let file = File::open(&filepath).map_err(|e| Error::OpenFile(e, filepath.into()))?;
+    let file = File::open(filepath).map_err(|e| Error::OpenFile(e, filepath.into()))?;
     Ok(BufReader::new(file))
 }
 
@@ -19,7 +19,7 @@ pub fn open_w(filepath: &Path) -> Result<impl Write> {
     let file = OpenOptions::new()
         .write(true)
         .create(true)
-        .open(&filepath)
+        .open(filepath)
         .map_err(|e| Error::OpenFile(e, filepath.into()))?;
     Ok(BufWriter::new(file))
 }

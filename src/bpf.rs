@@ -3,7 +3,7 @@
 use crate::config::{ProgramCounter, PADDING};
 
 /// Represents BPF instruction (call or another).
-#[derive(Debug, Default, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd)]
 pub struct Instruction {
     pc: ProgramCounter,
     text: String,

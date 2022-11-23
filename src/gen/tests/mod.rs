@@ -36,7 +36,7 @@ fn generate_line_by_line() {
     let reader = Cursor::new(mock::SIMPLE_INPUT);
     let asm_name = "/tmp/generate_line_by_line.asm".to_owned();
     let asm = Path::new(&asm_name);
-    let prof = trace::Profile::new(resv, Some(&asm));
+    let prof = trace::Profile::new(resv, Some(asm));
     assert!(prof.is_ok());
 
     let mut prof = prof.unwrap();
@@ -54,7 +54,7 @@ fn generate_line_by_line() {
     assert_eq!(output.len(), 504);
     assert_eq!(output, mock::SIMPLE_CALLGRIND_LINE_BY_LINE);
 
-    let asm = fs::read(&asm).unwrap();
+    let asm = fs::read(asm).unwrap();
     let asm = std::str::from_utf8(&asm).unwrap();
 
     //==== do not delete ====================================

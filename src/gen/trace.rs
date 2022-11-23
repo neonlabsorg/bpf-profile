@@ -24,14 +24,14 @@ use crate::bpf::Instruction;
 
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(resv: Resolver, asm_path: Option<&Path>) -> Result<Self> {
+    pub fn new(resolver: Resolver, asm_path: Option<&Path>) -> Result<Self> {
         let mut functions = Map::new();
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
             total_cost: 0,
             ground: Call::new(GROUND_ZERO, 0),
             functions,
-            resolver: resv,
+            resolver,
             asm: asm_path.map(asm::Source::new),
         })
     }
@@ -44,9 +44,9 @@ impl Profile {
     ) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", trace_path);
 
-        let resv = resolver::read(dump_path)?;
+        let resolver = resolver::read(dump_path)?;
         let reader = filebuf::open(trace_path)?;
-        let mut prof = Profile::new(resv, asm_path)?;
+        let mut prof = Profile::new(resolver, asm_path)?;
         parse(reader, &mut prof)?;
 
         Ok(prof)
@@ -55,8 +55,7 @@ impl Profile {
     /// Writes the profile data in the callgrind file format.
     /// See details of the format in the Valgrind documentation.
     pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
-        if self.asm.is_some() {
-            let asm = self.asm.as_ref().unwrap();
+        if let Some(asm) = &self.asm {
             asm.write(&self.resolver)?;
         }
 
