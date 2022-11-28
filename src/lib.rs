@@ -9,10 +9,10 @@ pub mod calls;
 pub mod error;
 pub mod gen;
 pub mod global;
+pub mod resolver;
 pub mod trace;
 
 mod filebuf;
-mod resolver;
 
 #[cfg(test)]
 mod tests;

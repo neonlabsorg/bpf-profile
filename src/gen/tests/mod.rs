@@ -4,7 +4,7 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 
-use crate::{DEFAULT_ASM, gen::trace, resolver};
+use crate::{gen::trace, resolver};
 
 mod mock;
 
@@ -20,7 +20,7 @@ fn generate_integral() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, DEFAULT_ASM);
+    let r = prof.write_callgrind(&mut output);
     assert!(r.is_ok());
 
     //==== do not delete ====================================
@@ -35,8 +35,7 @@ fn generate_integral() {
 fn generate_line_by_line() {
     let resv = resolver::Resolver::default();
     let reader = Cursor::new(mock::SIMPLE_INPUT);
-    let asm_name = "/tmp/generate_line_by_line.asm".to_owned();
-    let asm = Path::new(&asm_name);
+    let asm = Path::new("/tmp/generate_line_by_line.asm");
     let prof = trace::Profile::new(resv, Some(asm));
     assert!(prof.is_ok());
 
@@ -45,7 +44,7 @@ fn generate_line_by_line() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, &asm_name);
+    let r = prof.write_callgrind(&mut output);
     assert!(r.is_ok());
 
     //==== do not delete ====================================

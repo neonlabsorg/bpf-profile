@@ -3,7 +3,7 @@
 
 use super::asm;
 use super::profile::{self, Call, Function, Functions};
-use crate::{Cost, Map, ProgramCounter, GROUND_ZERO};
+use crate::{Cost, Map, ProgramCounter, GROUND_ZERO, DEFAULT_ASM};
 use crate::error::{Error, Result};
 use crate::resolver::{self, Resolver};
 use crate::{filebuf, global};
@@ -54,10 +54,14 @@ impl Profile {
 
     /// Writes the profile data in the callgrind file format.
     /// See details of the format in the Valgrind documentation.
-    pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
-        if let Some(asm) = &self.asm {
-            asm.write(&self.resolver)?;
-        }
+    pub fn write_callgrind(&self, mut output: impl Write) -> Result<()> {
+        let asm_fl = match &self.asm {
+            Some(asm) => {
+                asm.write(&self.resolver)?;
+                asm.output_path().to_string_lossy()
+            }
+            None => DEFAULT_ASM.into(),
+        };
 
         writeln!(output, "# callgrind format")?;
         writeln!(output, "version: 1")?;

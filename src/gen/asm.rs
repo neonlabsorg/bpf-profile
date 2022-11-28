@@ -54,6 +54,10 @@ impl Source {
         }
         Ok(())
     }
+
+    pub fn output_path(&self) -> &PathBuf {
+        &self.output_path
+    }
 }
 
 /// Writes all lines of the listing to a file.

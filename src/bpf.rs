@@ -45,6 +45,11 @@ impl InstructionData {
             return Ok(InstructionData::Exit);
         }
 
+        // TODO: This code is obsolete, need to update.
+        //       Call instruction now has format: "call LABEL" where LABEL is an identifier of
+        //       a label in the code, or "[invalid]" if label not found.
+        //       CallX instruction now has format "callx rXXX", where XXX is an i64 decimal
+        //       register index.
         if Self::is_call(s) {
             let mut pair = s.split_whitespace(); // => "call something"
             let operation = pair
