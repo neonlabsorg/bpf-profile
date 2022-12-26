@@ -5,7 +5,7 @@ use std::io::Write;
 
 use crate::{Address, Cost, GROUND_ZERO, Map, ProgramCounter};
 use crate::bpf::Instruction;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::global;
 use crate::resolver::Resolver;
 
@@ -99,11 +99,7 @@ impl Call {
 
     /// Creates new call object from a trace instruction (which must be a call).
     pub fn from(ix: &Instruction, lc: usize) -> Result<Self> {
-        if !ix.is_call() {
-            return Err(Error::TraceNotCall(ix.text(), lc));
-        }
-        let address = ix.call_target(lc)?;
-        Ok(Call::new(address, ix.pc()))
+        Ok(Self::new(ix.call_target(lc)?, ix.pc()))
     }
 
     /// Returns address of the call.

@@ -27,7 +27,7 @@ pub enum Error {
     #[error("Unsupported format of trace file: should contain standard header")]
     TraceFormat,
     #[error("Skipped input")]
-    TraceSkipped,
+    TraceSkipped(String),
     #[error("Instruction at line {1} is not a call: '{0}'")]
     TraceNotCall(String, usize),
     #[error("Cannot parse trace instruction '{0}' at line {1}")]

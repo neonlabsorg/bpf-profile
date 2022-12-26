@@ -1,14 +1,18 @@
 //! bpf-profile-generate trace module.
 //! Implements parsing of the trace file and generating the profile.
 
-use super::asm;
-use super::profile::{self, Call, Function, Functions};
-use crate::{Cost, Map, ProgramCounter, GROUND_ZERO, DEFAULT_ASM};
-use crate::error::{Error, Result};
-use crate::resolver::{self, Resolver};
-use crate::{filebuf, global};
 use std::io::{BufRead, Write};
 use std::path::Path;
+use tracing::warn;
+
+use crate::{Cost, DEFAULT_ASM, GROUND_ZERO, Map, ProgramCounter};
+use crate::{filebuf, global};
+use crate::bpf::Instruction;
+use crate::error::{Error, Result};
+use crate::resolver::{self, Resolver};
+
+use super::asm;
+use super::profile::{self, Call, Function, Functions};
 
 /// Represents the profile.
 #[derive(Debug)]
@@ -19,8 +23,6 @@ pub struct Profile {
     resolver: Resolver,
     asm: Option<asm::Source>,
 }
-
-use crate::bpf::Instruction;
 
 impl Profile {
     /// Creates the initial instance of profile.
@@ -135,15 +137,15 @@ pub fn parse(reader: impl BufRead, prof: &mut Profile) -> Result<()> {
 
 /// Parses the trace items one by one, building the Profile instance.
 pub fn process(
-    iterator: impl Iterator<Item=Result<(usize, Instruction)>>,
+    mut iterator: impl Iterator<Item=Result<(usize, Instruction)>>,
     prof: &mut Profile,
 ) -> Result<()> {
     let mut call_opt = None;
-    for result in iterator {
+    for result in &mut iterator {
         let (lc, ix) = match result {
             Ok((lc, ix)) => (lc, ix),
-            Err(Error::TraceSkipped) => {
-                /* warn!("Skip '{}'", &line.trim()); */
+            Err(Error::TraceSkipped(line)) => {
+                warn!("Skip '{}'", &line.trim());
                 continue;
             }
             Err(err) => return Err(err),
@@ -162,6 +164,12 @@ pub fn process(
         prof.increment_cost(ix.pc());
 
         if ix.is_exit() {
+            if prof.ground.depth() == 0 {
+                if iterator.next().is_some() {
+                    panic!("Exit without call");
+                }
+                break;
+            }
             prof.pop_call();
         } else if ix.is_call() {
             call_opt = Some(Call::from(&ix, lc)?);
@@ -171,7 +179,7 @@ pub fn process(
     assert!(call_opt.is_none());
 
     if prof.ground.depth() > 0 {
-        tracing::warn!("Unbalanced call/exit: {}", &prof.ground.depth());
+        warn!("Unbalanced call/exit: {}", &prof.ground.depth());
         for _ in 0..prof.ground.depth() {
             prof.pop_call();
         }

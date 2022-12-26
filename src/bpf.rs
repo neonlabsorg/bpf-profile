@@ -108,7 +108,7 @@ impl Instruction {
             return Ok(Instruction { pc, data, text });
         }
 
-        Err(Error::TraceSkipped)
+        Err(Error::TraceSkipped(s.to_string()))
     }
 
     /// Returns true if default instruction.

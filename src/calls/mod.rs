@@ -28,6 +28,7 @@ pub fn run(trace_path: &Path, dump_path: Option<&Path>, tab: usize) -> Result<()
 use crate::bpf::Instruction;
 use crate::resolver::Resolver;
 use std::io::BufRead;
+use tracing::warn;
 
 /// Parses the trace file line by line updating the resolver.
 /// Returns maximal depth of enclosed function calls.
@@ -50,8 +51,8 @@ fn update_resolver(mut reader: impl BufRead, resv: &mut Resolver) -> Result<usiz
         }
 
         let ixr = Instruction::parse(&line, lc);
-        if let Err(Error::TraceSkipped) = &ixr {
-            /* warn!("Skip '{}'", &line.trim()); */
+        if let Err(Error::TraceSkipped(_)) = &ixr {
+            warn!("Skip '{}'", &line.trim());
             line.clear();
             continue;
         }
@@ -110,8 +111,8 @@ fn trace_calls(
         }
 
         let ixr = Instruction::parse(&line, lc);
-        if let Err(Error::TraceSkipped) = &ixr {
-            /* warn!("Skip '{}'", &line.trim()); */
+        if let Err(Error::TraceSkipped(_)) = &ixr {
+            warn!("Skip '{}'", &line.trim());
             line.clear();
             continue;
         }
