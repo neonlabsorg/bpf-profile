@@ -188,13 +188,6 @@ pub fn write_callgrind_functions(
         tracing::info!("Writing callgrind profile...")
     }
 
-    // Collapse possible calls of functions from different pcs
-    // in case line_by_line_profile_enabled == false
-    let mut addresses = Map::new();
-
-    // Collect (caller-pc, function-address) => (number-of-calls, inclusive-cost)
-    let mut statistics = Map::new();
-
     for (a, f) in functions {
         if *a == GROUND_ZERO {
             continue;
@@ -208,25 +201,27 @@ pub fn write_callgrind_functions(
             }
         } else {
             let first_pc = f.costs.iter().next().expect("Empty function").0;
-            let total_cost = f.costs.values().sum::<Cost>();
+            let total_cost: Cost = f.costs.values().sum();
             writeln!(output, "{} {}", first_pc, total_cost)?;
         }
 
-        // Collect statistics of callees
-        addresses.clear();
-        statistics.clear();
+        // Collapse possible calls of functions from different pcs
+        // in case line_by_line_profile_enabled == false
+        let mut addresses = Map::new();
+
+        // Collect (caller-pc, function-address) => (number-of-calls, inclusive-cost)
+        let mut statistics = Map::new();
+
         for c in &f.calls {
             let key = if line_by_line_profile_enabled {
                 (c.caller_pc, c.address)
             } else {
-                let pc = addresses.entry(c.address).or_insert(c.caller_pc);
-                let unified_caller_pc = *pc;
-                (unified_caller_pc, c.address)
+                let unified_caller_pc = addresses.entry(c.address).or_insert(c.caller_pc);
+                (*unified_caller_pc, c.address)
             };
-            let stat = statistics.entry(key).or_insert((0_usize, 0_usize));
-            let number_of_calls = stat.0 + 1;
-            let inclusive_cost = stat.1 + c.cost;
-            statistics.insert(key, (number_of_calls, inclusive_cost));
+            let (number_of_calls, inclusive_cost) = statistics.entry(key).or_insert((0_usize, 0_usize));
+            *number_of_calls += 1;
+            *inclusive_cost += c.cost;
         }
 
         // Finally dump the statistics
