@@ -14,13 +14,10 @@ use crate::error::{Error, Result};
 pub enum InstructionData {
     /// Default (empty) instruction.
     Empty,
-    /// Call or CallX instruction.
-    Call {
-        /// `call` or `callx`.
-        operation: Box<str>,
-        /// Target address.
-        target: Address,
-    },
+    /// Call instruction.
+    Call(Address),
+    /// CallX instruction.
+    CallX(Address),
     /// Exit instruction.
     Exit,
     /// Other instruction (none of above).
@@ -54,13 +51,16 @@ impl InstructionData {
             let mut pair = s.split_whitespace(); // => "call something"
             let operation = pair
                 .next()
-                .ok_or_else(|| Error::TraceParsing(s.into(), lc))?
-                .into();
+                .ok_or_else(|| Error::TraceParsing(s.into(), lc))?;
             let target = pair
                 .next()
                 .ok_or_else(|| Error::TraceParsing(s.into(), lc))?;
             let target = hex_str_to_address(target);
-            return Ok(InstructionData::Call { operation, target });
+            return match operation {
+                "call" => Ok(InstructionData::Call(target)),
+                "callx" => Ok(InstructionData::Call(target)),
+                _ => Err(Error::TraceParsing(s.into(), lc)),
+            }
         }
 
         Ok(InstructionData::Other)
@@ -75,7 +75,6 @@ impl InstructionData {
     fn is_exit(text: &str) -> bool {
         text == "exit"
     }
-
 }
 
 /// Represents BPF instruction (call or another).
@@ -144,7 +143,8 @@ impl Instruction {
     /// Returns "call" or "callx" or error if instruction is not a call.
     pub fn call_operation(&self, lc: usize) -> Result<String> {
         match &self.data {
-            InstructionData::Call { operation: call_operation, .. } => Ok(call_operation.to_string()),
+            InstructionData::Call(_) => Ok("call".into()),
+            InstructionData::CallX(_) => Ok("callx".into()),
             _ => Err(Error::TraceNotCall(self.text(), lc)),
         }
     }
@@ -152,8 +152,16 @@ impl Instruction {
     /// Returns address of a call target or error if instruction is not a call.
     pub fn call_target(&self, lc: usize) -> Result<Address> {
         match &self.data {
-            InstructionData::Call { target, .. } => Ok(*target),
+            InstructionData::Call(target) => Ok(*target),
+            InstructionData::CallX(target) => Ok(*target),
             _ => Err(Error::TraceNotCall(self.text(), lc)),
+        }
+    }
+
+    pub(crate) fn compare_asm(&self, other: &Instruction) -> bool {
+        self.pc == other.pc && match &self.data {
+            InstructionData::CallX(_) => matches!(other.data, InstructionData::CallX(_)),
+            _=> self.data == other.data,
         }
     }
 }

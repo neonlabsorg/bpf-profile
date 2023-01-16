@@ -33,9 +33,9 @@ impl Source {
         }
         if self.ixs[index].is_empty() {
             self.ixs[index] = ix.clone();
-        } else if self.ixs[index] != *ix {
+        } else if !self.ixs[index].compare_asm(ix) {
             panic!(
-                "Inconsistent input: expected '{}', got '{}'",
+                "Inconsistent input: expected '{:?}', got '{:?}'",
                 &self.ixs[index], &ix
             );
         }
