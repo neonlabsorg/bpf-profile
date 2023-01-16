@@ -132,7 +132,7 @@ impl Instruction {
 
     /// Checks if the instruction is a call of function.
     pub fn is_call(&self) -> bool {
-        matches!(&self.data, InstructionData::Call { .. })
+        matches!(&self.data, InstructionData::Call(_) | InstructionData::CallX(_))
     }
 
     /// Checks if the instruction is exit of function.
@@ -152,8 +152,7 @@ impl Instruction {
     /// Returns address of a call target or error if instruction is not a call.
     pub fn call_target(&self, lc: usize) -> Result<Address> {
         match &self.data {
-            InstructionData::Call(target) => Ok(*target),
-            InstructionData::CallX(target) => Ok(*target),
+            InstructionData::Call(target) | InstructionData::CallX(target) => Ok(*target),
             _ => Err(Error::TraceNotCall(self.text(), lc)),
         }
     }
