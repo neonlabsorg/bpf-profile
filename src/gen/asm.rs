@@ -88,7 +88,12 @@ fn write_assembly_from_trace(
             let op = ix.call_operation(i)?;
             let address = ix.call_target(i)?;
             let name = resv.resolve_by_address(address);
-            let ix = Instruction::new(ix.pc(), ix.data(), format!("{} {}", &op, &name));
+            let ix = Instruction::new(
+                ix.pc(),
+                ix.data(),
+                format!("{} {}", &op, &name),
+                ix.units(),
+            );
             writeln!(output, "{}{}", ix, comment)?;
         }
     }

@@ -83,10 +83,10 @@ impl Profile {
     }
 
     /// Increments the total cost and the cost of current call.
-    fn increment_cost(&mut self, pc: ProgramCounter) {
+    fn increment_cost(&mut self, pc: ProgramCounter, units: Option<u64>) {
         tracing::debug!("Profile.increment_cost");
-        self.total_cost += 1;
-        self.ground.increment_cost(pc, &mut self.functions);
+        self.total_cost += units.unwrap_or(1);
+        self.ground.increment_cost(pc, &mut self.functions, units);
     }
 
     /// Adds next call to the call stack.
@@ -135,7 +135,7 @@ pub fn parse(reader: impl BufRead, prof: &mut Profile) -> Result<()> {
     process(iterator, prof)
 }
 
-/// Parses the trace items one by one, building the Profile instance.
+/// Processes the trace items one by one, building the Profile instance.
 pub fn process(
     mut iterator: impl Iterator<Item=Result<(usize, Instruction)>>,
     prof: &mut Profile,
@@ -161,7 +161,7 @@ pub fn process(
         }
 
         prof.keep_asm(&ix);
-        prof.increment_cost(ix.pc());
+        prof.increment_cost(ix.pc(), ix.units());
 
         if ix.is_exit() {
             if prof.ground.depth() == 0 {

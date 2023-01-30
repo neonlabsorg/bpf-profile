@@ -17,7 +17,7 @@ mod filebuf;
 #[cfg(test)]
 mod tests;
 
-type Cost = usize;
+type Cost = u64;
 type Index = usize;
 type Address = usize;
 type ProgramCounter = usize;

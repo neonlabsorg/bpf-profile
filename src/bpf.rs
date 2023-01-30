@@ -83,12 +83,18 @@ pub struct Instruction {
     pc: ProgramCounter,
     data: InstructionData,
     text: String,
+    units: Option<u64>,
 }
 
 impl Instruction {
     /// Creates new instance of Instruction.
-    pub const fn new(pc: ProgramCounter, data: InstructionData, text: String) -> Self {
-        Self { pc, data, text }
+    pub const fn new(
+        pc: ProgramCounter,
+        data: InstructionData,
+        text: String,
+        units: Option<u64>,
+    ) -> Self {
+        Self { pc, data, text, units }
     }
 
     /// Parses the input string and creates corresponding instruction if possible.
@@ -104,7 +110,7 @@ impl Instruction {
                 .unwrap_or_else(|_| panic!("Cannot parse program counter in instruction #{}", lc));
             let text = caps[2].trim().to_string();
             let data = InstructionData::parse(&text, lc)?;
-            return Ok(Instruction { pc, data, text });
+            return Ok(Instruction { pc, data, text, units: None });
         }
 
         Err(Error::TraceSkipped(s.to_string()))
@@ -128,6 +134,11 @@ impl Instruction {
     /// Returns copy of the textual representation.
     pub fn text(&self) -> String {
         self.text.clone()
+    }
+
+    /// Returns BPF units count, consumed by the instruction.
+    pub fn units(&self) -> Option<u64> {
+        self.units
     }
 
     /// Checks if the instruction is a call of function.
