@@ -83,10 +83,10 @@ impl Profile {
     }
 
     /// Increments the total cost and the cost of current call.
-    fn increment_cost(&mut self, pc: ProgramCounter, units: Option<u64>) {
+    fn increment_cost(&mut self, pc: ProgramCounter, bpf_units: Option<u64>) {
         tracing::debug!("Profile.increment_cost");
-        self.total_cost += units.unwrap_or(1);
-        self.ground.increment_cost(pc, &mut self.functions, units);
+        self.total_cost += bpf_units.unwrap_or(1);
+        self.ground.increment_cost(pc, &mut self.functions, bpf_units);
     }
 
     /// Adds next call to the call stack.
@@ -161,7 +161,7 @@ pub fn process(
         }
 
         prof.keep_asm(&ix);
-        prof.increment_cost(ix.pc(), ix.units());
+        prof.increment_cost(ix.pc(), ix.bpf_units());
 
         if ix.is_exit() {
             if prof.ground.depth() == 0 {

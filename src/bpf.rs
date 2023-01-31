@@ -83,7 +83,7 @@ pub struct Instruction {
     pc: ProgramCounter,
     data: InstructionData,
     text: String,
-    units: Option<u64>,
+    bpf_units: Option<u64>,
 }
 
 impl Instruction {
@@ -92,9 +92,9 @@ impl Instruction {
         pc: ProgramCounter,
         data: InstructionData,
         text: String,
-        units: Option<u64>,
+        bpf_units: Option<u64>,
     ) -> Self {
-        Self { pc, data, text, units }
+        Self { pc, data, text, bpf_units }
     }
 
     /// Parses the input string and creates corresponding instruction if possible.
@@ -110,7 +110,7 @@ impl Instruction {
                 .unwrap_or_else(|_| panic!("Cannot parse program counter in instruction #{}", lc));
             let text = caps[2].trim().to_string();
             let data = InstructionData::parse(&text, lc)?;
-            return Ok(Instruction { pc, data, text, units: None });
+            return Ok(Instruction { pc, data, text, bpf_units: None });
         }
 
         Err(Error::TraceSkipped(s.to_string()))
@@ -137,8 +137,8 @@ impl Instruction {
     }
 
     /// Returns BPF units count, consumed by the instruction.
-    pub fn units(&self) -> Option<u64> {
-        self.units
+    pub fn bpf_units(&self) -> Option<u64> {
+        self.bpf_units
     }
 
     /// Checks if the instruction is a call of function.

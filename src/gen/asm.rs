@@ -92,7 +92,7 @@ fn write_assembly_from_trace(
                 ix.pc(),
                 ix.data(),
                 format!("{} {}", &op, &name),
-                ix.units(),
+                ix.bpf_units(),
             );
             writeln!(output, "{}{}", ix, comment)?;
         }

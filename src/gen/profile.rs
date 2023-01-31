@@ -56,10 +56,10 @@ impl Function {
     }
 
     /// Increments the immediate cost of the function.
-    pub fn increment_cost(&mut self, pc: ProgramCounter, units: Option<u64>) {
+    pub fn increment_cost(&mut self, pc: ProgramCounter, bpf_units: Option<u64>) {
         tracing::debug!("Function(0x{:x}).increment_cost", self.address);
         *self.costs.entry(pc)
-            .or_insert(0) += units.unwrap_or(1);
+            .or_insert(0) += bpf_units.unwrap_or(1);
     }
 
     /// Adds finished enclosed call for this function.
@@ -123,18 +123,18 @@ impl Call {
     }
 
     /// Increments the cost of this call.
-    pub fn increment_cost(&mut self, pc: ProgramCounter, functions: &mut Functions, units: Option<u64>) {
+    pub fn increment_cost(&mut self, pc: ProgramCounter, functions: &mut Functions, bpf_units: Option<u64>) {
         tracing::debug!("Call(0x{:x}).increment_cost", self.address);
         match *self.callee {
             Some(ref mut callee) => {
-                callee.increment_cost(pc, functions, units);
+                callee.increment_cost(pc, functions, bpf_units);
             }
             None => {
-                self.cost += units.unwrap_or(1);
+                self.cost += bpf_units.unwrap_or(1);
                 let f = functions
                     .get_mut(&self.address)
                     .expect("Call address not found in the registry of functions");
-                f.increment_cost(pc, units);
+                f.increment_cost(pc, bpf_units);
             }
         }
     }
