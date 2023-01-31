@@ -142,8 +142,8 @@ impl Instruction {
     }
 
     /// Updated BPF units count, consumed by the instruction.
-    pub fn set_bpf_units(&mut self, value: u64) {
-        self.bpf_units = Some(value);
+    pub fn add_bpf_units(&mut self, value: u64) {
+        self.bpf_units = Some(self.bpf_units.unwrap_or_default() + value);
     }
 
     /// Checks if the instruction is a call of function.
