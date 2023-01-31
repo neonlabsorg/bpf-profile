@@ -141,6 +141,11 @@ impl Instruction {
         self.bpf_units
     }
 
+    /// Updated BPF units count, consumed by the instruction.
+    pub fn set_bpf_units(&mut self, value: u64) {
+        self.bpf_units = Some(value);
+    }
+
     /// Checks if the instruction is a call of function.
     pub fn is_call(&self) -> bool {
         matches!(&self.data, InstructionData::Call(_) | InstructionData::CallX(_))
