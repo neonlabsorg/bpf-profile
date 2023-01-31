@@ -20,7 +20,7 @@ fn generate_integral() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output);
+    let r = prof.write_callgrind(&mut output, None);
     assert!(r.is_ok());
 
     //==== do not delete ====================================
@@ -44,7 +44,7 @@ fn generate_line_by_line() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output);
+    let r = prof.write_callgrind(&mut output, None);
     assert!(r.is_ok());
 
     //==== do not delete ====================================

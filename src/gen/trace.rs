@@ -56,7 +56,7 @@ impl Profile {
 
     /// Writes the profile data in the callgrind file format.
     /// See details of the format in the Valgrind documentation.
-    pub fn write_callgrind(&self, mut output: impl Write) -> Result<()> {
+    pub fn write_callgrind(&self, mut output: impl Write, events_name: Option<&str>) -> Result<()> {
         let asm_fl = match &self.asm {
             Some(asm) => {
                 asm.write(&self.resolver)?;
@@ -69,7 +69,7 @@ impl Profile {
         writeln!(output, "version: 1")?;
         writeln!(output, "creator: bpf-profile")?;
         writeln!(output, "positions: line")?;
-        writeln!(output, "events: Instructions")?;
+        writeln!(output, "events: {}", events_name.unwrap_or("Instructions"))?;
         writeln!(output, "totals: {}", self.total_cost)?;
         writeln!(output, "fl={}", asm_fl)?;
         profile::write_callgrind_functions(output, &self.functions, self.asm.is_some())?;

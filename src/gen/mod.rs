@@ -31,7 +31,7 @@ pub fn run(
     let profile = Profile::create(trace_path, dump_path, asm_path)?;
 
     match output_path {
-        None => profile.write_callgrind(io::stdout()),
-        Some(output_path) => profile.write_callgrind(filebuf::open_w(output_path)?),
+        None => profile.write_callgrind(io::stdout(), None),
+        Some(output_path) => profile.write_callgrind(filebuf::open_w(output_path)?, None),
     }
 }
