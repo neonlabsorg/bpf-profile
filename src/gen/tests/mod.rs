@@ -1,11 +1,12 @@
 //! bpf-profile-generate tests module.
 
-mod mock;
-
-use crate::{config, gen::trace, resolver};
 use std::fs;
 use std::io::Cursor;
 use std::path::Path;
+
+use crate::{gen::trace, resolver};
+
+mod mock;
 
 #[test]
 fn generate_integral() {
@@ -19,7 +20,7 @@ fn generate_integral() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, config::DEFAULT_ASM);
+    let r = prof.write_callgrind(&mut output, None);
     assert!(r.is_ok());
 
     //==== do not delete ====================================
@@ -34,9 +35,8 @@ fn generate_integral() {
 fn generate_line_by_line() {
     let resv = resolver::Resolver::default();
     let reader = Cursor::new(mock::SIMPLE_INPUT);
-    let asm_name = "/tmp/generate_line_by_line.asm".to_owned();
-    let asm = Path::new(&asm_name);
-    let prof = trace::Profile::new(resv, Some(&asm));
+    let asm = Path::new("/tmp/generate_line_by_line.asm");
+    let prof = trace::Profile::new(resv, Some(asm));
     assert!(prof.is_ok());
 
     let mut prof = prof.unwrap();
@@ -44,7 +44,7 @@ fn generate_line_by_line() {
     assert!(r.is_ok());
 
     let mut output = Vec::<u8>::new();
-    let r = prof.write_callgrind(&mut output, &asm_name);
+    let r = prof.write_callgrind(&mut output, None);
     assert!(r.is_ok());
 
     //==== do not delete ====================================
@@ -54,7 +54,7 @@ fn generate_line_by_line() {
     assert_eq!(output.len(), 504);
     assert_eq!(output, mock::SIMPLE_CALLGRIND_LINE_BY_LINE);
 
-    let asm = fs::read(&asm).unwrap();
+    let asm = fs::read(asm).unwrap();
     let asm = std::str::from_utf8(&asm).unwrap();
 
     //==== do not delete ====================================

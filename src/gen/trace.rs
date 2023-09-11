@@ -1,14 +1,18 @@
 //! bpf-profile-generate trace module.
 //! Implements parsing of the trace file and generating the profile.
 
-use super::asm;
-use super::profile::{self, Call, Function, Functions};
-use crate::config::{Cost, Map, ProgramCounter, GROUND_ZERO};
-use crate::error::{Error, Result};
-use crate::resolver::{self, Resolver};
-use crate::{filebuf, global};
 use std::io::{BufRead, Write};
 use std::path::Path;
+use tracing::warn;
+
+use crate::{Cost, DEFAULT_ASM, GROUND_ZERO, Map, ProgramCounter};
+use crate::{filebuf, global};
+use crate::bpf::Instruction;
+use crate::error::{Error, Result};
+use crate::resolver::{self, Resolver};
+
+use super::asm;
+use super::profile::{self, Call, Function, Functions};
 
 /// Represents the profile.
 #[derive(Debug)]
@@ -20,18 +24,16 @@ pub struct Profile {
     asm: Option<asm::Source>,
 }
 
-use crate::bpf::Instruction;
-
 impl Profile {
     /// Creates the initial instance of profile.
-    pub fn new(resv: Resolver, asm_path: Option<&Path>) -> Result<Self> {
+    pub fn new(resolver: Resolver, asm_path: Option<&Path>) -> Result<Self> {
         let mut functions = Map::new();
         functions.insert(GROUND_ZERO, Function::ground_zero());
         Ok(Profile {
             total_cost: 0,
             ground: Call::new(GROUND_ZERO, 0),
             functions,
-            resolver: resv,
+            resolver,
             asm: asm_path.map(asm::Source::new),
         })
     }
@@ -44,9 +46,9 @@ impl Profile {
     ) -> Result<Self> {
         tracing::debug!("Profile.create {:?}", trace_path);
 
-        let resv = resolver::read(dump_path)?;
+        let resolver = resolver::read(dump_path)?;
         let reader = filebuf::open(trace_path)?;
-        let mut prof = Profile::new(resv, asm_path)?;
+        let mut prof = Profile::new(resolver, asm_path)?;
         parse(reader, &mut prof)?;
 
         Ok(prof)
@@ -54,17 +56,20 @@ impl Profile {
 
     /// Writes the profile data in the callgrind file format.
     /// See details of the format in the Valgrind documentation.
-    pub fn write_callgrind(&self, mut output: impl Write, asm_fl: &str) -> Result<()> {
-        if self.asm.is_some() {
-            let asm = self.asm.as_ref().unwrap();
-            asm.write(&self.resolver)?;
-        }
+    pub fn write_callgrind(&self, mut output: impl Write, events_name: Option<&str>) -> Result<()> {
+        let asm_fl = match &self.asm {
+            Some(asm) => {
+                asm.write(&self.resolver)?;
+                asm.output_path().to_string_lossy()
+            }
+            None => DEFAULT_ASM.into(),
+        };
 
         writeln!(output, "# callgrind format")?;
         writeln!(output, "version: 1")?;
         writeln!(output, "creator: bpf-profile")?;
         writeln!(output, "positions: line")?;
-        writeln!(output, "events: Instructions")?;
+        writeln!(output, "events: {}", events_name.unwrap_or("Instructions"))?;
         writeln!(output, "totals: {}", self.total_cost)?;
         writeln!(output, "fl={}", asm_fl)?;
         profile::write_callgrind_functions(output, &self.functions, self.asm.is_some())?;
@@ -78,10 +83,10 @@ impl Profile {
     }
 
     /// Increments the total cost and the cost of current call.
-    fn increment_cost(&mut self, pc: ProgramCounter) {
+    fn increment_cost(&mut self, pc: ProgramCounter, bpf_units: Option<u64>) {
         tracing::debug!("Profile.increment_cost");
-        self.total_cost += 1;
-        self.ground.increment_cost(pc, &mut self.functions);
+        self.total_cost += bpf_units.unwrap_or(1);
+        self.ground.increment_cost(pc, &mut self.functions, bpf_units);
     }
 
     /// Adds next call to the call stack.
@@ -112,64 +117,69 @@ impl Profile {
 }
 
 /// Parses the trace file line by line, building the Profile instance.
-pub fn parse(mut reader: impl BufRead, prof: &mut Profile) -> Result<()> {
+pub fn parse(reader: impl BufRead, prof: &mut Profile) -> Result<()> {
     if global::verbose() {
         tracing::info!("Parsing trace file, creating profile...")
     }
 
-    let mut line = String::with_capacity(512);
-    let mut bytes_read = usize::MAX;
     let mut lc = 0_usize;
-    let mut ix: Instruction;
-
-    while bytes_read != 0 {
-        if line.is_empty() {
-            bytes_read = filebuf::read_line(&mut reader, &mut line)?;
+    let iterator = reader.lines()
+        .map(|line| {
             lc += 1;
-        }
+            match line {
+                Ok(line) => Instruction::parse(&line, lc).map(|ix| (lc, ix)),
+                Err(err) => Err(err.into()),
+            }
+        });
 
-        let ixr = Instruction::parse(&line);
-        if let Err(Error::TraceSkipped) = &ixr {
-            /* warn!("Skip '{}'", &line.trim()); */
-            line.clear();
-            continue;
-        }
-        ix = ixr?;
+    process(iterator, prof)
+}
 
-        prof.keep_asm(&ix);
-
-        if ix.is_exit() {
-            prof.increment_cost(ix.pc());
-            prof.pop_call();
-            line.clear();
-            continue;
-        }
-
-        if !ix.is_call() {
-            prof.increment_cost(ix.pc());
-            line.clear();
-            continue;
-        }
+/// Processes the trace items one by one, building the Profile instance.
+pub fn process(
+    mut iterator: impl Iterator<Item=Result<(usize, Instruction)>>,
+    prof: &mut Profile,
+) -> Result<()> {
+    let mut call_opt = None;
+    for result in &mut iterator {
+        let (lc, ix) = match result {
+            Ok((lc, ix)) => (lc, ix),
+            Err(Error::TraceSkipped(line)) => {
+                warn!("Skip '{}'", &line.trim());
+                continue;
+            }
+            Err(err) => return Err(err),
+        };
 
         // Handle sequences of enclosed calls as well:
         // 604: call 0xcb3fc071
         // 588: call 0x8e0001f9
         // 1024: call 0x8bf38212
         // ...
-        while ix.is_call() {
-            prof.increment_cost(ix.pc());
-            let call = Call::from(&ix, lc)?;
-            // Read next line — the first instruction of the call
-            bytes_read = filebuf::read_line(&mut reader, &mut line)?;
-            lc += 1;
-            ix = Instruction::parse(&line)?;
+        if let Some(call) = call_opt.take() {
             prof.push_call(call, ix.pc());
         }
-        // Keep here the last non-call line to process further
+
+        prof.keep_asm(&ix);
+        prof.increment_cost(ix.pc(), ix.bpf_units());
+
+        if ix.is_exit() {
+            if prof.ground.depth() == 0 {
+                if iterator.next().is_some() {
+                    panic!("Exit without call");
+                }
+                break;
+            }
+            prof.pop_call();
+        } else if ix.is_call() {
+            call_opt = Some(Call::from(&ix, lc)?);
+        }
     }
 
+    assert!(call_opt.is_none());
+
     if prof.ground.depth() > 0 {
-        tracing::warn!("Unbalanced call/exit: {}", &prof.ground.depth());
+        warn!("Unbalanced call/exit: {}", &prof.ground.depth());
         for _ in 0..prof.ground.depth() {
             prof.pop_call();
         }

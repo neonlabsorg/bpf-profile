@@ -1,18 +1,20 @@
 //! bpf-profile generate command implementation.
 
+use std::io;
+use std::path::Path;
+
+use trace::Profile;
+
+use crate::error::{Error, Result};
+use crate::filebuf;
+
+pub mod trace;
+
 mod asm;
 mod profile;
-mod trace;
 
 #[cfg(test)]
 mod tests;
-
-use crate::config::DEFAULT_ASM;
-use crate::error::{Error, Result};
-use crate::filebuf;
-use std::io;
-use std::path::Path;
-use trace::Profile;
 
 /// Runs the conversion from BPF trace to a profiler output.
 pub fn run(
@@ -28,18 +30,8 @@ pub fn run(
 
     let profile = Profile::create(trace_path, dump_path, asm_path)?;
 
-    let source_filename = match asm_path {
-        None => DEFAULT_ASM,
-        Some(asm_path) => asm_path
-            .to_str()
-            .ok_or_else(|| Error::Filename(asm_path.into()))?,
-    };
-
     match output_path {
-        None => profile.write_callgrind(io::stdout(), source_filename),
-        Some(output_path) => {
-            let output = filebuf::open_w(output_path)?;
-            profile.write_callgrind(output, source_filename)
-        }
+        None => profile.write_callgrind(io::stdout(), None),
+        Some(output_path) => profile.write_callgrind(filebuf::open_w(output_path)?, None),
     }
 }

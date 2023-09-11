@@ -1,7 +1,13 @@
 //! bpf-profile-generate profile module.
 
-use crate::config::{Address, Cost, Map, ProgramCounter};
 use std::collections::BTreeMap;
+use std::io::Write;
+
+use crate::{Address, Cost, GROUND_ZERO, Map, ProgramCounter};
+use crate::bpf::Instruction;
+use crate::error::Result;
+use crate::global;
+use crate::resolver::Resolver;
 
 pub type Functions = Map<Address, Function>;
 type Costs = BTreeMap<ProgramCounter, Cost>; // sort by pc
@@ -14,9 +20,6 @@ pub struct Function {
     costs: Costs,
     calls: Vec<Call>,
 }
-
-use crate::config::GROUND_ZERO;
-use crate::resolver::Resolver;
 
 impl Function {
     /// Creates initial function object which stores total cost of entire program.
@@ -53,10 +56,10 @@ impl Function {
     }
 
     /// Increments the immediate cost of the function.
-    pub fn increment_cost(&mut self, pc: ProgramCounter) {
+    pub fn increment_cost(&mut self, pc: ProgramCounter, bpf_units: Option<u64>) {
         tracing::debug!("Function(0x{:x}).increment_cost", self.address);
-        let c = *self.costs.entry(pc).or_insert(0);
-        self.costs.insert(pc, c + 1);
+        *self.costs.entry(pc)
+            .or_insert(0) += bpf_units.unwrap_or(1);
     }
 
     /// Adds finished enclosed call for this function.
@@ -81,9 +84,6 @@ pub struct Call {
     depth: usize,
 }
 
-use crate::bpf::Instruction;
-use crate::error::{Error, Result};
-
 impl Call {
     /// Creates new call object.
     pub fn new(address: Address, caller_pc: ProgramCounter) -> Self {
@@ -99,12 +99,7 @@ impl Call {
 
     /// Creates new call object from a trace instruction (which must be a call).
     pub fn from(ix: &Instruction, lc: usize) -> Result<Self> {
-        let text = ix.text();
-        if !ix.is_call() {
-            return Err(Error::TraceNotCall(text, lc));
-        }
-        let address = ix.extract_call_target(lc)?;
-        Ok(Call::new(address, ix.pc()))
+        Ok(Self::new(ix.call_target(lc)?, ix.pc()))
     }
 
     /// Returns address of the call.
@@ -128,18 +123,18 @@ impl Call {
     }
 
     /// Increments the cost of this call.
-    pub fn increment_cost(&mut self, pc: ProgramCounter, functions: &mut Functions) {
+    pub fn increment_cost(&mut self, pc: ProgramCounter, functions: &mut Functions, bpf_units: Option<u64>) {
         tracing::debug!("Call(0x{:x}).increment_cost", self.address);
         match *self.callee {
             Some(ref mut callee) => {
-                callee.increment_cost(pc, functions);
+                callee.increment_cost(pc, functions, bpf_units);
             }
             None => {
-                self.cost += 1;
+                self.cost += bpf_units.unwrap_or(1);
                 let f = functions
                     .get_mut(&self.address)
                     .expect("Call address not found in the registry of functions");
-                f.increment_cost(pc);
+                f.increment_cost(pc, bpf_units);
             }
         }
     }
@@ -183,9 +178,6 @@ impl Call {
     }
 }
 
-use crate::global;
-use std::io::Write;
-
 /// Writes information about calls of functions and their costs.
 pub fn write_callgrind_functions(
     mut output: impl Write,
@@ -195,13 +187,6 @@ pub fn write_callgrind_functions(
     if global::verbose() {
         tracing::info!("Writing callgrind profile...")
     }
-
-    // Collapse possible calls of functions from different pcs
-    // in case line_by_line_profile_enabled == false
-    let mut addresses = Map::new();
-
-    // Collect (caller-pc, function-address) => (number-of-calls, inclusive-cost)
-    let mut statistics = Map::new();
 
     for (a, f) in functions {
         if *a == GROUND_ZERO {
@@ -216,25 +201,27 @@ pub fn write_callgrind_functions(
             }
         } else {
             let first_pc = f.costs.iter().next().expect("Empty function").0;
-            let total_cost = f.costs.values().sum::<Cost>();
+            let total_cost: Cost = f.costs.values().sum();
             writeln!(output, "{} {}", first_pc, total_cost)?;
         }
 
-        // Collect statistics of callees
-        addresses.clear();
-        statistics.clear();
+        // Collapse possible calls of functions from different pcs
+        // in case line_by_line_profile_enabled == false
+        let mut addresses = Map::new();
+
+        // Collect (caller-pc, function-address) => (number-of-calls, inclusive-cost)
+        let mut statistics = Map::new();
+
         for c in &f.calls {
             let key = if line_by_line_profile_enabled {
                 (c.caller_pc, c.address)
             } else {
-                let pc = addresses.entry(c.address).or_insert(c.caller_pc);
-                let unified_caller_pc = *pc;
-                (unified_caller_pc, c.address)
+                let unified_caller_pc = addresses.entry(c.address).or_insert(c.caller_pc);
+                (*unified_caller_pc, c.address)
             };
-            let stat = statistics.entry(key).or_insert((0_usize, 0_usize));
-            let number_of_calls = stat.0 + 1;
-            let inclusive_cost = stat.1 + c.cost;
-            statistics.insert(key, (number_of_calls, inclusive_cost));
+            let (number_of_calls, inclusive_cost) = statistics.entry(key).or_insert((0_usize, 0_u64));
+            *number_of_calls += 1;
+            *inclusive_cost += c.cost;
         }
 
         // Finally dump the statistics

@@ -2,24 +2,24 @@
 
 use crate::error::{Error, Result};
 use std::fs::{self, File, OpenOptions};
-use std::io::{BufRead, BufReader, BufWriter, Write};
+use std::io::{BufRead, BufReader, BufWriter};
 use std::path::Path;
 
 /// Opens a file for buffered reading.
 pub fn open(filepath: &Path) -> Result<impl BufRead> {
-    let file = File::open(&filepath).map_err(|e| Error::OpenFile(e, filepath.into()))?;
+    let file = File::open(filepath).map_err(|e| Error::OpenFile(e, filepath.into()))?;
     Ok(BufReader::new(file))
 }
 
 /// Opens a file for buffered writing; rewrites existing.
-pub fn open_w(filepath: &Path) -> Result<impl Write> {
+pub fn open_w(filepath: &Path) -> Result<BufWriter<File>> {
     if filepath.exists() {
         fs::remove_file(filepath)?;
     }
     let file = OpenOptions::new()
         .write(true)
         .create(true)
-        .open(&filepath)
+        .open(filepath)
         .map_err(|e| Error::OpenFile(e, filepath.into()))?;
     Ok(BufWriter::new(file))
 }

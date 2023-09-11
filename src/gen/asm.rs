@@ -1,7 +1,13 @@
 //! bpf-profile-generate asm module.
 
-use crate::bpf::Instruction;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use crate::{filebuf, global};
+use crate::bpf::Instruction;
+use crate::error::Result;
+use crate::PADDING;
+use crate::resolver::Resolver;
 
 /// Represents generated assembly file.
 #[derive(Debug)]
@@ -9,11 +15,6 @@ pub struct Source {
     output_path: PathBuf,
     ixs: Vec<Instruction>,
 }
-
-use crate::error::Result;
-use crate::resolver::Resolver;
-use crate::{filebuf, global};
-use std::io::Write;
 
 impl Source {
     /// Creates new instance of Source.
@@ -32,9 +33,9 @@ impl Source {
         }
         if self.ixs[index].is_empty() {
             self.ixs[index] = ix.clone();
-        } else if self.ixs[index] != *ix {
+        } else if !self.ixs[index].compare_asm(ix) {
             panic!(
-                "Inconsistent input: expected '{}', got '{}'",
+                "Inconsistent input: expected '{:?}', got '{:?}'",
                 &self.ixs[index], &ix
             );
         }
@@ -53,9 +54,11 @@ impl Source {
         }
         Ok(())
     }
-}
 
-use crate::config::PADDING;
+    pub fn output_path(&self) -> &PathBuf {
+        &self.output_path
+    }
+}
 
 /// Writes all lines of the listing to a file.
 /// Uses assembly instructions from the trace file.
@@ -82,10 +85,15 @@ fn write_assembly_from_trace(
         if !ix.is_call() {
             writeln!(output, "{}{}", ix, comment)?;
         } else {
-            let op = ix.extract_call_operation(i)?;
-            let address = ix.extract_call_target(i)?;
+            let op = ix.call_operation(i)?;
+            let address = ix.call_target(i)?;
             let name = resv.resolve_by_address(address);
-            let ix = Instruction::new(ix.pc(), format!("{} {}", &op, &name));
+            let ix = Instruction::new(
+                ix.pc(),
+                ix.data(),
+                format!("{} {}", &op, &name),
+                ix.bpf_units(),
+            );
             writeln!(output, "{}{}", ix, comment)?;
         }
     }
